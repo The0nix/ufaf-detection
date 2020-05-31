@@ -118,7 +118,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         :param annotation: dict containing information about the annotation (nuscenes object)
         :param ego_pose: dict containing the of the LiDAR (nuscenes object)
         :param check_bounds: whether to return None if box is out of bounds
-        :return: torch.Tensor [x, y, w, h, a_sin, a_cos]
+        :return: torch.Tensor [y, x, w, l, a_sin, a_cos]
         """
         translation = np.array(annotation["translation"]) - np.array(ego_pose["translation"])
         if check_bounds and not point_in_bounds(translation, self.crop_min_bound, self.crop_max_bound):
