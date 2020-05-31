@@ -115,7 +115,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         Converts annotations to model-friendly bounding box
         if check_bounds is True, returns None if center of the annotation is out of bounds
-        :param annotation: dict сеcontaining the information about the annotation (nuscenes object)
+        :param annotation: dict containing information about the annotation (nuscenes object)
         :param ego_pose: dict containing the of the LiDAR (nuscenes object)
         :param check_bounds: whether to return None if box is out of bounds
         :return: torch.Tensor [x, y, w, h, a_sin, a_cos]
