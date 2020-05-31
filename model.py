@@ -1,4 +1,5 @@
 from collections import defaultdict
+from time import time
 
 import torch
 from torch import nn
@@ -116,6 +117,7 @@ class GroundTruthFormer:
             used_boxes = set()
             for gt_box in self.gt_bboxes[n]:
                 current_max_iou, current_max_box = 0, None
+                # TODO: speed up using set of (i, j, k) boxes
                 for i in range(self.detector_out_width):
                     for j in range(self.detector_out_length):
                         for k, candidate_box in enumerate(self.predefined_bboxes):
@@ -125,10 +127,13 @@ class GroundTruthFormer:
                             if iou > iou_threshold and (i, j, k) not in used_boxes:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
-                                gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box
+                                gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
+                                gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
                             elif iou < iou_threshold and (i, j, k) not in used_boxes:
                                 if iou > current_max_iou:
                                     used_boxes.add((i, j, k))
+                                    if current_max_box is not None:
+                                        used_boxes.remove(current_max_box)
                                     current_max_iou, current_max_box = iou, (i, j, k)
                                 else:
                                     continue
@@ -136,16 +141,18 @@ class GroundTruthFormer:
                                 continue
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
+                    current_max_box = (1, 1, 1)
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
-                    gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box
+                    gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
+                    gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
 
         return gt_result
 
     @staticmethod
-    def _transform_predef_bbox_to_img(params: tuple, n_pools: int) -> list:
+    def _transform_predef_bbox_to_img(params: (list, tuple), n_pools: int) -> list:
         """
-        Retrieve projection of the candidate box to original image
+        Retrieve projection of the candidate box to the original image
         :param params: tuple of cell indices, width and length of the predefined bbox
         :param n_pools: number of pooling layers in the feature extractor
         :return: tuple of of cell indices, width and length of the predefined bbox projection on the original image
@@ -184,15 +191,20 @@ class GroundTruthFormer:
     def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
         return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
 
+
 # little work and shape testing snippet
 # batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
 # frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
 # gt_bboxes = [[torch.randn(6).cuda() for j in range(20)] for i in range(batch_size)]
 #
 # net = Detector(depth).cuda()
+# begin = time()
 # model_out = net(frames)
-# print(model_out.shape)
+# end = time()
+# print(model_out.shape, f'Time taken: {(end - begin):.4f} seconds', sep='\n')
 #
 # gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
+# begin = time()
 # gt = gt_former()
-# print(gt.shape)
+# end = time()
+# print(gt.shape, f'Time taken: {(end - begin):.2f} seconds', sep='\n')
