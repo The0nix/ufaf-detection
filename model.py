@@ -1,5 +1,9 @@
+import cProfile
 from collections import defaultdict
+from math import sqrt
 from time import time
+
+import numpy as np
 
 import torch
 from torch import nn
@@ -121,9 +125,11 @@ class GroundTruthFormer:
                 for i in range(self.detector_out_width):
                     for j in range(self.detector_out_length):
                         for k, candidate_box in enumerate(self.predefined_bboxes):
-                            iou = self.calc_iou_from_polygons(self._get_polygon_from_gt(gt_box),
-                                                              self._get_polygon_from_candidate((i, j, *candidate_box),
-                                                                                               self.n_pools))
+                            if (i, j, k) in used_boxes:
+                                continue
+                            candidate_box_parametrized = self._project_predefined_bbox_to_img((i, j, *candidate_box))
+                            iou = self.calc_iou_from_polygons(self._get_polygon(np.array(gt_box)),
+                                                              self._get_polygon(candidate_box_parametrized, rot=False))
                             if iou > iou_threshold and (i, j, k) not in used_boxes:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
@@ -135,13 +141,9 @@ class GroundTruthFormer:
                                     if current_max_box is not None:
                                         used_boxes.remove(current_max_box)
                                     current_max_iou, current_max_box = iou, (i, j, k)
-                                else:
-                                    continue
-                            else:
-                                continue
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
-                    current_max_box = (1, 1, 1)
+                    current_max_box = (1, 1, 1)  # this handles current_max_box being None for random data
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
                     gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
@@ -149,62 +151,70 @@ class GroundTruthFormer:
 
         return gt_result
 
-    @staticmethod
-    def _transform_predef_bbox_to_img(params: (list, tuple), n_pools: int) -> list:
+    def _project_predefined_bbox_to_img(self, params: (list, tuple)) -> np.ndarray:
         """
         Retrieve projection of the candidate box to the original image
-        :param params: tuple of cell indices, width and length of the predefined bbox
-        :param n_pools: number of pooling layers in the feature extractor
-        :return: tuple of of cell indices, width and length of the predefined bbox projection on the original image
+        :param params: list or tuple of cell indices, width and length of the predefined bbox
+        :return: tensor of of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
+        on the original image
         """
-        return [elem * 2 ** n_pools for elem in params]
+        return np.concatenate((np.array([elem * 2 ** self.n_pools for elem in params]),
+                               np.array([0, 1])))
 
     @staticmethod
-    def _get_polygon_from_gt(gt_box: (list, tuple)) -> Polygon:
+    def _get_polygon(parametrized_box: np.ndarray, rot=True) -> Polygon:
         """
-        Get Polygon object from ground truth bounding box parametrization. Center is considered to be a
-        "right-bottom center".
-        :param gt_box: list or tuple of ground truth bounding box geometrical parameters
+        Get Polygon object from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
+        cos(a). Center is considered to be a "right-bottom center".
+        :param parametrized_box: array of ground truth bounding box geometrical parameters (center_y, center_x,
+        width, length, sin(a), cos(a))
         :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
         """
-        return Polygon([[1, 1], [0, 1], [0, 0], [1, 0]])
+        i, j = parametrized_box[:2]
+        width, length = parametrized_box[2:4] + np.array([1, 1])  # converts borders calculus to center
 
-    @staticmethod
-    def _get_polygon_from_candidate(candidate_box: (list, tuple), n_pools: int) -> Polygon:
-        """
-        Get Polygon object from feature map predefined box parametrization. Center is considered to be a
-        "right-bottom center".
-        :param candidate_box: list or tuple of predefined box center coordinates and size params `i, j, width, length`
-        :param n_pools: number of pooling layers in the feature extractor
-        :return: Polygon object, initialized by vertices of the box polygon on original image scale
-        """
-        candidate_box = GroundTruthFormer._transform_predef_bbox_to_img(candidate_box, n_pools)
-        i, j, width, length = candidate_box
         left_top = [j - length // 2, i - width // 2]
         right_top = [j + length // 2 + length % 2 - 1, i - width // 2]
         right_bottom = [j + length // 2 + length % 2 - 1, i + width // 2 + width % 2 - 1]
         left_bottom = [j - length // 2, i + width // 2 + width % 2 - 1]
-        a = Polygon([left_top, right_top, right_bottom, left_bottom]).area
-        return Polygon([left_top, right_top, right_bottom, left_bottom])
+        vertices = [left_top, right_top, right_bottom, left_bottom]
+        if rot:
+            sin, cos = parametrized_box[4:]
+            rotation = np.array([[cos, -sin], [sin, cos]])
+            return Polygon([tuple(np.dot(rotation, np.array(vertex).reshape(-1, 1))) for vertex in vertices])
+        return Polygon(vertices)
 
     @staticmethod
     def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
         return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
 
 
-# little work and shape testing snippet
+# sanity checks: model forward pass and
 # batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
 # frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
-# gt_bboxes = [[torch.randn(6).cuda() for j in range(20)] for i in range(batch_size)]
+# gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
 #
 # net = Detector(depth).cuda()
 # begin = time()
 # model_out = net(frames)
 # end = time()
-# print(model_out.shape, f'Time taken: {(end - begin):.4f} seconds', sep='\n')
+# print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
+#
+# a = cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
+# print(a)
 #
 # gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
 # begin = time()
 # gt = gt_former()
 # end = time()
-# print(gt.shape, f'Time taken: {(end - begin):.2f} seconds', sep='\n')
+# print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
+#
+# # sanity check: rectangle area must not change after rotation
+# gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
+#             torch.tensor([1, 2, 5, 5, 0, 1]),
+#             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
+# for gt_box in gt_boxes:
+#     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
+#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
+
+
