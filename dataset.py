@@ -35,10 +35,10 @@ class NuscenesBEVDataset(torchdata.Dataset):
     :param n_scenes: if not None represents the number of scenes downloaded
     (if you downloaded only a part of the dataset)
     """
-    def __init__(self, root: str, voxels_per_meter: int=5,
-                 crop_min_bound: Tuple[int, int, int]=(-40, -72, -2),
-                 crop_max_bound: Tuple[int, int, int]=(40, 72, 3.5),
-                 nuscenes_version: str="v1.0-trainval", n_scenes: int=None):
+    def __init__(self, root: str, voxels_per_meter: int = 5,
+                 crop_min_bound: Tuple[int, int, int] = (-40, -72, -2),
+                 crop_max_bound: Tuple[int, int, int] = (40, 72, 3.5),
+                 nuscenes_version: str = "v1.0-trainval", n_scenes: int = None) -> None:
         self.root = root
         self.voxels_per_meter = voxels_per_meter
         self.voxel_size = 1 / voxels_per_meter
@@ -87,7 +87,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         pcd = o3d.geometry.PointCloud()
         scan = np.fromfile(filepath, dtype=np.float32)
-        points = scan.reshape([-1, 5])[:, :3]
+        points = scan.reshape([-1, 5])[:, :3]  # Each dot in file has 5 values, but we only need 3 (x, y and z)
         pcd.points = o3d.utility.Vector3dVector(points)
         pcd = pcd.crop(o3d.geometry.AxisAlignedBoundingBox(self.crop_min_bound, self.crop_max_bound - self.voxel_size))
         grid = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, voxel_size=self.voxel_size)
@@ -104,14 +104,15 @@ class NuscenesBEVDataset(torchdata.Dataset):
         :param voxelgrid: VoxelGrid to convert
         :return: numpy.ndarray representation of voxel grid
         """
-        voxels_ix = np.asarray([v.grid_index for v in voxelgrid.get_voxels()])
+        voxels_ix = np.array([v.grid_index for v in voxelgrid.get_voxels()])
         # if actual crop is smaller then desired, we have to add space to voxels
-        voxels_ix += ((voxelgrid.get_min_bound() - self.crop_min_bound).astype(int) * self.voxels_per_meter)
+        voxels_ix += (voxelgrid.get_min_bound() - self.crop_min_bound * self.voxels_per_meter).astype(int)
         result = np.zeros(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter).astype(int))
         result[tuple(voxels_ix.T)] = 1  # If this breaks, god help you
         return result
 
-    def _annotation_to_bbox(self, annotation: Dict, ego_pose: Dict, check_bounds: bool=False) -> Union[torch.Tensor, None]:
+    def _annotation_to_bbox(self, annotation: Dict, ego_pose: Dict, check_bounds: bool = False) \
+            -> Union[torch.Tensor, None]:
         """
         Converts annotations to model-friendly bounding box
         if check_bounds is True, returns None if center of the annotation is out of bounds
