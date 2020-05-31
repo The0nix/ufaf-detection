@@ -46,7 +46,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.crop_max_bound = np.array(crop_max_bound)
         self.filenames = sorted(os.listdir(self.root))
 
-        # Initialize nuscenes dataset and determine it's length and indices
+        # Initialize nuscenes dataset and determine it's size
         self.nuscenes = NuScenes(version=nuscenes_version, dataroot=root)
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
         self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
