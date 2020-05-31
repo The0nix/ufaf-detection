@@ -2,6 +2,7 @@ import cProfile
 from collections import defaultdict
 from math import sqrt
 from time import time
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -10,6 +11,9 @@ from shapely.geometry import Polygon
 
 
 class EarlyFusion(nn.Module):
+    """
+    Early fusion feature extraction model from Fast & Furious paper. Extracts information from several lidar frames.
+    """
     def __init__(self, img_depth, n_base_channels=32, n_time_steps=5):
         super().__init__()
         self.n_base_channels = n_base_channels
@@ -57,15 +61,15 @@ class EarlyFusion(nn.Module):
 
 
 class Detector(nn.Module):
-    def __init__(self, img_depth, n_predefined_boxes=6):
-        """
-        :param img_depth: int, discretized height of the image from BEV
-        :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
+    """
+    :param img_depth: int, discretized height of the image from BEV
+    :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
 
-        First `6 * n_predefined_boxes` depth levels of final_conv output correspond to BB location parameters
-        on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
-        BB containing a vehicle
-        """
+    First `6 * n_predefined_boxes` depth levels of final_conv output correspond to BB location parameters
+    on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
+    BB containing a vehicle
+    """
+    def __init__(self, img_depth, n_predefined_boxes=6):
         super().__init__()
         self.feature_extractor = EarlyFusion(img_depth)
 
@@ -85,14 +89,15 @@ class Detector(nn.Module):
 
 
 class GroundTruthFormer:
-    def __init__(self, gt_frame_size: tuple, gt_bboxes: list, detector_output: torch.Tensor, n_pools=4) -> None:
-        """
-        :param gt_frame_size: tuple of the legth and width of the frame (expected to be equal among all frames)
-        :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
-        center coordinates, length, width, sin(a) and cos(a)
-        :param detector_output: 4D tensor, output of the detector
-        :param n_pools: number of pooling layers in the feature extractor
-        """
+    """
+    :param gt_frame_size: tuple of the length and width of the frame (expected to be equal among all frames)
+    :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
+    center coordinates, length, width, sin(a) and cos(a)
+    :param detector_output: 4D tensor, output of the detector
+    :param n_pools: number of pooling layers in the feature extractor
+    """
+    def __init__(self, gt_frame_size: Tuple[int, int], gt_bboxes: List[torch.Tensor], detector_output: torch.Tensor,
+                 n_pools: int = 4) -> None:
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
         self.gt_bboxes = gt_bboxes
         self.batch_size = detector_output.shape[0]
@@ -106,13 +111,12 @@ class GroundTruthFormer:
     def __call__(self):
         return self.form_gt()
 
-    def form_gt(self) -> torch.Tensor:
+    def form_gt(self, iou_threshold: int = 0.4) -> torch.Tensor:
         """
         Function builds 4D torch.Tensor with a shape of the detector output for the batch of frames.
         The built tensor will be then used as ground truth data to calculate loss for the model.
         :return: 4D tensor of ground truth data
         """
-        iou_threshold = 0.4
         gt_result = torch.zeros_like(self.detector_output)
         for n in range(self.batch_size):
             gt_with_candidate_matches = defaultdict(list)
@@ -125,15 +129,15 @@ class GroundTruthFormer:
                         for k, candidate_box in enumerate(self.predefined_bboxes):
                             if (i, j, k) in used_boxes:
                                 continue
-                            candidate_box_parametrized = self._project_predefined_bbox_to_img((i, j, *candidate_box))
-                            iou = self.calc_iou_from_polygons(self._get_polygon(np.array(gt_box)),
+                            candidate_box_parametrized = self._project_predefined_bbox_to_img([i, j, *candidate_box])
+                            iou = self.calc_iou_from_polygons(self._get_polygon(gt_box.numpy()),
                                                               self._get_polygon(candidate_box_parametrized, rot=False))
-                            if iou > iou_threshold and (i, j, k) not in used_boxes:
+                            if iou > iou_threshold:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
                                 gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
                                 gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
-                            elif iou < iou_threshold and (i, j, k) not in used_boxes:
+                            else:
                                 if iou > current_max_iou:
                                     used_boxes.add((i, j, k))
                                     if current_max_box is not None:
@@ -141,7 +145,8 @@ class GroundTruthFormer:
                                     current_max_iou, current_max_box = iou, (i, j, k)
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
-                    current_max_box = (1, 1, 1)  # this handles current_max_box being None for random data
+                    # next line handles current_max_box being None while testing, remove it while applying to real data
+                    current_max_box = (1, 1, 1)
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
                     gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
@@ -149,21 +154,21 @@ class GroundTruthFormer:
 
         return gt_result
 
-    def _project_predefined_bbox_to_img(self, params: (list, tuple)) -> np.ndarray:
+    def _project_predefined_bbox_to_img(self, params: List[int]) -> np.ndarray:
         """
         Retrieve projection of the candidate box to the original image
         :param params: list or tuple of cell indices, width and length of the predefined bbox
-        :return: tensor of of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
+        :return: tensor of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
         on the original image
         """
         return np.concatenate((np.array([elem * 2 ** self.n_pools for elem in params]),
                                np.array([0, 1])))
 
     @staticmethod
-    def _get_polygon(parametrized_box: np.ndarray, rot=True) -> Polygon:
+    def _get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
         """
         Get Polygon object from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
-        cos(a). Center is considered to be a "right-bottom center".
+        cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
         :param parametrized_box: array of ground truth bounding box geometrical parameters (center_y, center_x,
         width, length, sin(a), cos(a))
         :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
@@ -179,7 +184,7 @@ class GroundTruthFormer:
         if rot:
             sin, cos = parametrized_box[4:]
             rotation = np.array([[cos, -sin], [sin, cos]])
-            return Polygon([tuple(np.dot(rotation, np.array(vertex).reshape(-1, 1))) for vertex in vertices])
+            return Polygon([tuple(rotation @ np.array(vertex).reshape(-1, 1)) for vertex in vertices])
         return Polygon(vertices)
 
     @staticmethod
@@ -198,8 +203,7 @@ class GroundTruthFormer:
 # end = time()
 # print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
 #
-# a = cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
-# print(a)
+# cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
 #
 # gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
 # begin = time()
