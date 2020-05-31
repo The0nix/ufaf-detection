@@ -129,6 +129,6 @@ class NuscenesBEVDataset(torchdata.Dataset):
         rotation = Rotation(annotation["rotation"]) * Rotation(ego_pose["rotation"]).inv()
         a_rotated = rotation.apply([1, 0, 0])
         a_cos =  a_rotated[0]
-        a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[0])
+        a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
         return torch.tensor([x, y, w, l, a_sin, a_cos])
