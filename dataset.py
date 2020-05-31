@@ -46,7 +46,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.crop_max_bound = np.array(crop_max_bound)
         self.filenames = sorted(os.listdir(self.root))
 
-        # Initialize nuscenes dataset and determine it's length and indices
+        # Initialize nuscenes dataset and determine it's size
         self.nuscenes = NuScenes(version=nuscenes_version, dataroot=root)
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
         self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
@@ -116,10 +116,10 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         Converts annotations to model-friendly bounding box
         if check_bounds is True, returns None if center of the annotation is out of bounds
-        :param annotation: dict сеcontaining the information about the annotation (nuscenes object)
+        :param annotation: dict containing information about the annotation (nuscenes object)
         :param ego_pose: dict containing the of the LiDAR (nuscenes object)
         :param check_bounds: whether to return None if box is out of bounds
-        :return: torch.Tensor [x, y, w, h, a_sin, a_cos]
+        :return: torch.Tensor [y, x, w, l, a_sin, a_cos]
         """
         translation = np.array(annotation["translation"]) - np.array(ego_pose["translation"])
         if check_bounds and not point_in_bounds(translation, self.crop_min_bound, self.crop_max_bound):
@@ -129,7 +129,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
 
         rotation = Rotation(annotation["rotation"]) * Rotation(ego_pose["rotation"]).inv()
         a_rotated = rotation.apply([1, 0, 0])
-        a_cos =  a_rotated[0]
-        a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[0])
+        a_cos = a_rotated[0]
+        a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
-        return torch.tensor([x, y, w, l, a_sin, a_cos])
+        return torch.tensor([y, x, w, l, a_sin, a_cos])
