@@ -51,6 +51,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
         self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
 
+        # TODO: Add train/validation split
+
     def __getitem__(self, ix: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Get point cloud converted to voxel grid
