@@ -4,10 +4,8 @@ from math import sqrt
 from time import time
 
 import numpy as np
-
 import torch
 from torch import nn
-
 from shapely.geometry import Polygon
 
 
@@ -216,5 +214,4 @@ class GroundTruthFormer:
 # for gt_box in gt_boxes:
 #     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
 #     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
-
 
