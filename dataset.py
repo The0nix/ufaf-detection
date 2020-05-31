@@ -131,4 +131,4 @@ class NuscenesBEVDataset(torchdata.Dataset):
         a_cos = a_rotated[0]
         a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
-        return torch.tensor([x, y, w, l, a_sin, a_cos])
+        return torch.tensor([y, x, w, l, a_sin, a_cos])
