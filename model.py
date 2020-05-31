@@ -72,7 +72,7 @@ class Detector(nn.Module):
         self.final_conv = nn.Conv2d(self.feature_extractor.out_channels, 7 * n_predefined_boxes,
                                     kernel_size=3, padding=1)
 
-    def forward(self, frames):
+    def forward(self, frames: torch.Tensor) -> torch.Tensor:
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_length, img_width)
