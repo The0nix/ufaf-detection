@@ -48,7 +48,7 @@ class EarlyFusion(nn.Module):
         expected shape is (batch_size, time_steps, img_depth, img_length, img_width)
         :return: feature map
         """
-        batch_size, n_time_steps, pic_size = frames.shape[0], frames.shape[1], frames.shape[2:]
+        batch_size, n_time_steps, *pic_size = frames.shape
         frames = torch.reshape(frames, (batch_size, n_time_steps, pic_size[0] * pic_size[1] * pic_size[2]))
         fused = self.conv1d(frames)
         fused = torch.reshape(fused, (batch_size, *pic_size))
