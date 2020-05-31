@@ -42,7 +42,7 @@ class EarlyFusion(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False),
         )
 
-    def forward(self, frames):
+    def forward(self, frames: torch.Tensor) -> torch.Tensor:
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_length, img_width)
@@ -214,4 +214,3 @@ class GroundTruthFormer:
 # for gt_box in gt_boxes:
 #     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
 #     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
-
