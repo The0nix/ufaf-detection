@@ -94,19 +94,21 @@ class GroundTruthFormer:
     :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
     center coordinates, length, width, sin(a) and cos(a)
     :param detector_output: 4D tensor, output of the detector
+    :param voxels_per_meter: number of voxels per meter in the frames
+    :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
     """
     def __init__(self, gt_frame_size: Tuple[int, int], gt_bboxes: List[torch.Tensor], detector_output: torch.Tensor,
-                 n_pools: int = 4) -> None:
+                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4) -> None:
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
         self.gt_bboxes = gt_bboxes
         self.batch_size = detector_output.shape[0]
         self.detector_out_width, self.detector_out_length = detector_output.shape[-2:]
         self.detector_output = detector_output
         self.n_pools = n_pools
-        bbox_scaling = 1  # TODO: get from OnixinO
+        self.bbox_scaling = car_size * voxels_per_meter
         predefined_bboxes = [[1, 1], [1, 2], [2, 1], [1, 6], [6, 1], [2, 2]]
-        self.predefined_bboxes = [[bbox_scaling * dim for dim in box] for box in predefined_bboxes]
+        self.predefined_bboxes = [[dim for dim in box] for box in predefined_bboxes]
 
     def __call__(self):
         return self.form_gt()
@@ -161,8 +163,12 @@ class GroundTruthFormer:
         :return: tensor of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
         on the original image
         """
-        return np.concatenate((np.array([elem * 2 ** self.n_pools for elem in params]),
-                               np.array([0, 1])))
+        position, size = params[:2], params[2:]
+        return np.asarray([position[0] * 2 ** self.n_pools,  # find projection through pooling layers
+                           position[1] * 2 ** self.n_pools,
+                           size[0] * self.bbox_scaling,      # scale to real world cars size
+                           size[1] * self.bbox_scaling,
+                           0, 1])                            # zero rotation
 
     @staticmethod
     def _get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
@@ -173,8 +179,8 @@ class GroundTruthFormer:
         width, length, sin(a), cos(a))
         :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
         """
-        i, j = parametrized_box[:2]
-        width, length = parametrized_box[2:4] + np.array([1, 1])  # converts borders calculus to center
+        i, j = np.asarray(parametrized_box[:2])
+        width, length = parametrized_box[2:4] + np.asarray([1, 1])  # converts borders calculus to center
 
         left_top = [j - length // 2, i - width // 2]
         right_top = [j + length // 2 + length % 2 - 1, i - width // 2]
@@ -183,8 +189,11 @@ class GroundTruthFormer:
         vertices = [left_top, right_top, right_bottom, left_bottom]
         if rot:
             sin, cos = parametrized_box[4:]
-            rotation = np.array([[cos, -sin], [sin, cos]])
-            return Polygon([tuple(rotation @ np.array(vertex).reshape(-1, 1)) for vertex in vertices])
+            rotation = np.asarray([[cos, -sin], [sin, cos]])
+            vertices_centered = [np.asarray([vertex[0] - i, vertex[1] - j]) for vertex in vertices]
+            vertices_centered_rotated = [tuple(rotation @ vertex.reshape(-1, 1))
+                                         for vertex in vertices_centered]
+            return Polygon([(vertex[0] + i, vertex[1] + j) for vertex in vertices_centered_rotated])
         return Polygon(vertices)
 
     @staticmethod
@@ -193,28 +202,28 @@ class GroundTruthFormer:
 
 
 # sanity checks: model forward pass and
-# batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
-# frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
-# gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
-#
-# net = Detector(depth).cuda()
-# begin = time()
-# model_out = net(frames)
-# end = time()
-# print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
-#
-# cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
-#
-# gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
-# begin = time()
-# gt = gt_former()
-# end = time()
-# print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
-#
-# # sanity check: rectangle area must not change after rotation
-# gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
-#             torch.tensor([1, 2, 5, 5, 0, 1]),
-#             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
-# for gt_box in gt_boxes:
-#     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
+batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
+frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
+gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
+
+net = Detector(depth).cuda()
+begin = time()
+model_out = net(frames)
+end = time()
+print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
+
+cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
+
+gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
+begin = time()
+gt = gt_former()
+end = time()
+print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
+
+# sanity check: rectangle area must not change after rotation
+gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
+            torch.tensor([1, 2, 5, 5, 0, 1]),
+            torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
+for gt_box in gt_boxes:
+    print(f'True area: {gt_box[2] * gt_box[3]}', end='')
+    print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
