@@ -117,6 +117,7 @@ class GroundTruthFormer:
         """
         Function builds 4D torch.Tensor with a shape of the detector output for the batch of frames.
         The built tensor will be then used as ground truth data to calculate loss for the model.
+        :param iou_threshold: threshold above which box is considered match to ground truth
         :return: 4D tensor of ground truth data
         """
         gt_result = torch.zeros_like(self.detector_output)
