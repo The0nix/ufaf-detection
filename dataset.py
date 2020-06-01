@@ -58,7 +58,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.voxel_size = 1 / voxels_per_meter
         self.crop_min_bound = np.array(crop_min_bound)
         self.crop_max_bound = np.array(crop_max_bound)
-        self.grid_size = tuple((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)
+        self.grid_size = \
+            tuple(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)[[2, 0, 1]].astype(int))
 
         # Initialize nuscenes dataset and determine it's size
         self.nuscenes = nuscenes
