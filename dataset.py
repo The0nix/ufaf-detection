@@ -23,31 +23,44 @@ def point_in_bounds(point: Union[Collection, Iterable],
     return np.all(np.asarray(point) >= np.asarray(min_bound)) and np.all(np.asarray(point) <= np.asarray(max_bound))
 
 
+def create_nuscenes(root: str, version: str = "v1.0-trainval") -> NuScenes:
+    """
+    Creates nuScenes object that can be later passed to NuscenesBEVDataset.
+    Warning, it takes up a considerable abound of RAM space.
+    :param root: path to folder with nuscenes dataset
+    :param version: version of the dataset
+    :return: created NuScenes object
+    """
+    return NuScenes(dataroot=root, version=version)
+
+
 class NuscenesBEVDataset(torchdata.Dataset):
     """
     Dataset for LiDAR images from nuScenes that are converted
     to voxel grid as described in Fast & Furious paper
-    :param root: path to directory with LiDAR images
+    :param nuscenes: NuScenes object (can be created with create_nuscenes)
     :param voxels_per_meter: number of voxels per meter or 1 / voxel_size
     :param crop_min_bound: min bound of the box to crop point cloud to in by X, Y and Z in meters
     :param crop_max_bound: max bound of the box to crop point cloud to in by X, Y and Z in meters
-    :param nuscenes_version: version of the nuscenes dataset
     :param n_scenes: if not None represents the number of scenes downloaded
     (if you downloaded only a part of the dataset)
+
+    Example:
+        >>> nuscenes = create_nuscenes("./data")
+        >>> ds = NuscenesBEVDataset(nuscenes, n_scenes=85)
+        >>> grid, boxes = ds[0]
     """
-    def __init__(self, root: str, voxels_per_meter: int = 5,
+    def __init__(self, nuscenes: NuScenes, voxels_per_meter: int = 5,
                  crop_min_bound: Tuple[int, int, int] = (-40, -72, -2),
                  crop_max_bound: Tuple[int, int, int] = (40, 72, 3.5),
-                 nuscenes_version: str = "v1.0-trainval", n_scenes: int = None) -> None:
-        self.root = root
+                 n_scenes: int = None) -> None:
         self.voxels_per_meter = voxels_per_meter
         self.voxel_size = 1 / voxels_per_meter
         self.crop_min_bound = np.array(crop_min_bound)
         self.crop_max_bound = np.array(crop_max_bound)
-        self.filenames = sorted(os.listdir(self.root))
 
         # Initialize nuscenes dataset and determine it's size
-        self.nuscenes = NuScenes(version=nuscenes_version, dataroot=root)
+        self.nuscenes = nuscenes
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
         self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
 
@@ -64,7 +77,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
 
         # Get lidar data
         filename = sample_data["filename"]
-        filepath = os.path.join(self.root, filename)
+        filepath = os.path.join(self.nuscenes.dataroot, filename)
         grid = torch.from_numpy(self._get_point_cloud(filepath))
 
         # Get GT boxes
