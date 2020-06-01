@@ -58,6 +58,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.voxel_size = 1 / voxels_per_meter
         self.crop_min_bound = np.array(crop_min_bound)
         self.crop_max_bound = np.array(crop_max_bound)
+        self.grid_size = \
+            tuple(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)[[2, 0, 1]].astype(int))
 
         # Initialize nuscenes dataset and determine it's size
         self.nuscenes = nuscenes
@@ -70,7 +72,9 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         Get point cloud converted to voxel grid
         :param ix: index of element to get
-        :return: tuple of (lidar voxel grid, list of bounding boxes)
+        :return: tuple of:
+            lidar voxel grid of shape (depth, height, width),
+            list of bounding boxes of (y, x, w, l, a_sin, a_cos)
         """
         sample = self.nuscenes.sample[ix]
         sample_data = self.nuscenes.get("sample_data", sample["data"]["LIDAR_TOP"])
@@ -98,7 +102,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         Get open3d point cloud from .pcd.bin nuscenes file and convert it to
         numpy.ndarray representing voxelgrid
         :param filepath:
-        :return: numpy.ndarray voxel grid
+        :return: numpy.ndarray voxel grid of shape (depth, height, width)
         """
         pcd = o3d.geometry.PointCloud()
         scan = np.fromfile(filepath, dtype=np.float32)
@@ -107,6 +111,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         pcd = pcd.crop(o3d.geometry.AxisAlignedBoundingBox(self.crop_min_bound, self.crop_max_bound - self.voxel_size))
         grid = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, voxel_size=self.voxel_size)
         grid = self._voxelgrid_to_numpy(grid)
+        grid = np.rollaxis(grid, 2, 0, )
 
         return grid
 
@@ -134,7 +139,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         :param annotation: dict containing information about the annotation (nuscenes object)
         :param ego_pose: dict containing the of the LiDAR (nuscenes object)
         :param check_bounds: whether to return None if box is out of bounds
-        :return: torch.Tensor [y, x, w, l, a_sin, a_cos]
+        :return: torch.Tensor (y, x, w, l, a_sin, a_cos)
         """
         translation = np.array(annotation["translation"]) - np.array(ego_pose["translation"])
         if check_bounds and not point_in_bounds(translation, self.crop_min_bound, self.crop_max_bound):
