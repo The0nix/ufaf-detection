@@ -149,7 +149,7 @@ class GroundTruthFormer:
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
                     # next line handles current_max_box being None while testing, remove it while applying to real data
-                    current_max_box = (1, 1, 1)
+                    # current_max_box = (1, 1, 1)
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
                     gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
