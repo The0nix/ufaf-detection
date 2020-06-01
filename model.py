@@ -13,6 +13,9 @@ from shapely.geometry import Polygon
 class EarlyFusion(nn.Module):
     """
     Early fusion feature extraction model from Fast & Furious paper. Extracts information from several lidar frames.
+    :param img_depth: int, discretized height of the image from BEV
+    :param n_base_channels=32: int, number of channels in the first convolution layer of VGG16
+    :param n_time_steps: int, number of frames to be processed
     """
     def __init__(self, img_depth, n_base_channels=32, n_time_steps=5):
         super().__init__()
@@ -49,7 +52,7 @@ class EarlyFusion(nn.Module):
     def forward(self, frames: torch.Tensor) -> torch.Tensor:
         """
         :param frames: set of frames for several time steps (default 5),
-        expected shape is (batch_size, time_steps, img_depth, img_length, img_width)
+        expected shape is (batch_size, time_steps, img_depth, img_width, img_length)
         :return: feature map
         """
         batch_size, n_time_steps, *pic_size = frames.shape
@@ -62,16 +65,18 @@ class EarlyFusion(nn.Module):
 
 class Detector(nn.Module):
     """
+    Predicts 2D bounding boxes for cars objects in the provided frames.
     :param img_depth: int, discretized height of the image from BEV
+    :param n_time_steps: int, number of frames to be processed
     :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
 
     First `6 * n_predefined_boxes` depth levels of final_conv output correspond to BB location parameters
     on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
     BB containing a vehicle
     """
-    def __init__(self, img_depth: int, n_predefined_boxes=6):
+    def __init__(self, img_depth: int, n_time_steps: int = 1, n_predefined_boxes: int = 6):
         super().__init__()
-        self.feature_extractor = EarlyFusion(img_depth)
+        self.feature_extractor = EarlyFusion(img_depth, n_time_steps=n_time_steps)
 
         self.final_conv = nn.Conv2d(self.feature_extractor.out_channels, 7 * n_predefined_boxes,
                                     kernel_size=3, padding=1)
@@ -90,6 +95,7 @@ class Detector(nn.Module):
 
 class GroundTruthFormer:
     """
+    Forms tensor of ground truth data to calculate loss.
     :param gt_frame_size: tuple of the length and width of the frame (expected to be equal among all frames)
     :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
     center coordinates, length, width, sin(a) and cos(a)
@@ -115,10 +121,9 @@ class GroundTruthFormer:
 
     def form_gt(self, iou_threshold: int = 0.4) -> torch.Tensor:
         """
-        Function builds 4D torch.Tensor with a shape of the detector output for the batch of frames.
-        The built tensor will be then used as ground truth data to calculate loss for the model.
+        Builds 4D torch.Tensor with a shape of the detector output for the batch of frames.
         :param iou_threshold: threshold above which box is considered match to ground truth
-        :return: 4D tensor of ground truth data
+        :return: 4D torch.Tensor of ground truth data
         """
         gt_result = torch.zeros_like(self.detector_output)
         for n in range(self.batch_size):
@@ -178,6 +183,7 @@ class GroundTruthFormer:
         cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
         :param parametrized_box: array of ground truth bounding box geometrical parameters (center_y, center_x,
         width, length, sin(a), cos(a))
+        :param rot: bool, True if rotation needed, False otherwise
         :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
         """
         i, j = np.asarray(parametrized_box[:2])
@@ -202,7 +208,7 @@ class GroundTruthFormer:
         return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
 
 
-# sanity checks: model forward pass and
+# sanity checks: model forward pass and ground truth forming
 # batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
 # frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
 # gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
