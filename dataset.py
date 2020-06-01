@@ -121,7 +121,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         voxels_ix = np.array([v.grid_index for v in voxelgrid.get_voxels()])
         # if actual crop is smaller then desired, we have to add space to voxels
-        voxels_ix += (voxelgrid.get_min_bound() - self.crop_min_bound * self.voxels_per_meter).astype(int)
+        voxels_ix += ((voxelgrid.get_min_bound() - self.crop_min_bound) * self.voxels_per_meter).astype(int)
         result = np.zeros(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter).astype(int))
         result[tuple(voxels_ix.T)] = 1  # If this breaks, god help you
         return result
