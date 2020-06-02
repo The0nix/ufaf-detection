@@ -29,6 +29,7 @@ def draw_bev(grid: Union["torch.Tensor", np.ndarray], ax: Optional[plt.Axes] = N
     Draw bird eye view of voxel grid using matplotlib
     :param grid: torch.Tensor or np.ndarray of shape (depth, height, width) representing voxel grid
     :param ax: plt.Axes to draw in. If None, plt.Axes object will be created
+    return: plt.Axes object with visualized grid
     """
     grid = np.asarray(grid)
     grid = grid.sum(axis=0).clip(max=1)
@@ -46,6 +47,7 @@ def draw_bev_with_bboxes(grid: Union["torch.Tensor", np.ndarray],
     :param grid: torch.Tensor or np.ndarray of shape (depth, height, width) representing voxel grid
     :param bboxes: list of bounding boxes of (y, x, w, l, a_sin, a_cos)
     :param ax: plt.Axes to draw in. If None, plt.Axes object will be created
+    :return: plt.Axes object with visualized grid and bounding boxes
     """
     draw_bev(grid, ax=ax)
 
