@@ -15,6 +15,7 @@ from model import Detector, GroundTruthFormer
 class DetectionLoss(nn.modules.loss._Loss):
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1) -> None:
+        super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
