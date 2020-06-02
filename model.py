@@ -210,28 +210,28 @@ class GroundTruthFormer:
 
 
 # sanity checks: model forward pass and ground truth forming
-batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
-frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
-gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
-
-net = Detector(depth).cuda()
-begin = time()
-model_out = net(frames)
-end = time()
-print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
-
-cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)()")
-
-gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)
-begin = time()
-gt = gt_former()
-end = time()
-print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
-
-# sanity check: rectangle area must not change after rotation
-gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
-            torch.tensor([1, 2, 5, 5, 0, 1]),
-            torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
-for gt_box in gt_boxes:
-    print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-    print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
+# batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
+# frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
+# gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
+#
+# net = Detector(depth).cuda()
+# begin = time()
+# model_out = net(frames)
+# end = time()
+# print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
+#
+# cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)()")
+#
+# gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)
+# begin = time()
+# gt = gt_former()
+# end = time()
+# print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
+#
+# # sanity check: rectangle area must not change after rotation
+# gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
+#             torch.tensor([1, 2, 5, 5, 0, 1]),
+#             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
+# for gt_box in gt_boxes:
+#     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
+#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
