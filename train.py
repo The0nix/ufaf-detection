@@ -14,18 +14,24 @@ from model import Detector, GroundTruthFormer
 
 
 class DetectionLoss(nn.modules.loss._Loss):
+    """
+    Combination of losses for both regression and classification targets
+    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
+    :param regression_values_per_unit: number of regression values per bounding box
+    :param classification_values_per_unit: number of classes for classification problem
+    :param regression_base_loss: loss function to be used for regression targets
+    :param classification_base_loss: loss function to be used for classification targets
+    """
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
-                 classification_values_per_unit: int = 1) -> None:
-        """
-        Combination of losses for both regression and classification targets
-        :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
-        :param regression_values_per_unit: number of regression values per bounding box
-        :param classification_values_per_unit: number of classes for classification problem
-        """
+                 classification_values_per_unit: int = 1,
+                 regression_base_loss: nn.modules.loss._Loss = nn.SmoothL1Loss(),
+                 classification_base_loss: nn.modules.loss._Loss = nn.BCEWithLogitsLoss()) -> None:
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
+        self.regression_base_loss = regression_base_loss
+        self.classification_base_loss = classification_base_loss
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         """
