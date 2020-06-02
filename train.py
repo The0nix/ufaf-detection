@@ -12,7 +12,7 @@ from dataset import create_nuscenes, NuscenesBEVDataset
 from model import Detector, GroundTruthFormer
 
 
-class DetectionLoss:
+class DetectionLoss(nn.modules.loss._Loss):
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1) -> None:
         self.prediction_units_per_cell = prediction_units_per_cell
