@@ -80,6 +80,9 @@ class Detector(nn.Module):
 
         self.final_conv = nn.Conv2d(self.feature_extractor.out_channels, 7 * n_predefined_boxes,
                                     kernel_size=3, padding=1)
+        # TODO: extract automatically from architecture
+        self.n_pools = 4
+        self.out_channels = 7 * n_predefined_boxes
 
     def forward(self, frames: torch.Tensor) -> torch.Tensor:
         """
