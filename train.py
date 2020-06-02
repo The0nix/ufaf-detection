@@ -16,12 +16,24 @@ from model import Detector, GroundTruthFormer
 class DetectionLoss(nn.modules.loss._Loss):
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1) -> None:
+        """
+        Combination of losses for both regression and classification targets
+        :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
+        :param regression_values_per_unit: number of regression values per bounding box
+        :param classification_values_per_unit: number of classes for classification problem
+        """
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
+        """
+        Compute loss
+        :param predictions: model output
+        :param ground_truth: ground truth data
+        :return: one element torch.Tensor loss
+        """
         gt_regression = ground_truth[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
         gt_classification = ground_truth[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         pred_regression = predictions[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
@@ -48,11 +60,26 @@ def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: torch.optim.optimizer.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
+    """
+    Run one epoch for model. Can be used for both training and validation.
+    :param model: pytorch model to be trained or validated
+    :param loader: data loader to run model on batches
+    :param criterion: callable class to calculate loss
+    :param gt_former: callable class to form ground truth data to compute loss
+    :param epoch: number of current epoch
+    :param mode: `train` or `eval', controls model parameters update need
+    :param writer: tensorboard writer
+    :param optimizer: pytorch model parameters optimizer
+    :param device: device to be used for model related computations
+    """
     if mode == 'train':
         model.train()
-    else:
+    elif mode == 'eval':
         model.eval()
         cumulative_loss = 0
+    else:
+        raise ValueError(f'Unknown mode: {mode}')
+
     for i, (frames, bboxes) in enumerate(loader):
         frames = frames.to(device)
         preds = model(frames)
@@ -72,7 +99,17 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
 
 
 def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str = 'v1.0-trainval',
-          n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100):
+          n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100) -> None:
+    """
+    Train model, log training statistics if tb_path is specified.
+    :param data_path: relative path to data folder
+    :param tb_path: name of the folder for tensorboard data to be store in
+    :param n_scenes: number of scenes in dataset
+    :param version: version of the dataset
+    :param n_loader_workers: number of CPU workers for data loader processing
+    :param batch_size: batch size
+    :param n_epochs: total number of epochs to train the model
+    """
     # set up computing device for pytorch
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -114,6 +151,7 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
                   optimizer=optimizer)
         scheduler.step()
         # run_epoch(model, val_loader, criterion, epoch, mode='val', writer=val_writer)
+
 
 def eval(data_path: str, model_path: str, **kwargs):  # TODO: remove **kwargs and add proper keyword arguments
     raise NotImplementedError
