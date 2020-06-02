@@ -14,7 +14,7 @@ class EarlyFusion(nn.Module):
     """
     Early fusion feature extraction model from Fast & Furious paper. Extracts information from several lidar frames.
     :param img_depth: int, discretized height of the image from BEV
-    :param n_base_channels=32: int, number of channels in the first convolution layer of VGG16
+    :param n_base_channels: int, number of channels in the first convolution layer of VGG16
     :param n_time_steps: int, number of frames to be processed
     """
     def __init__(self, img_depth, n_base_channels=32, n_time_steps=5):
@@ -53,7 +53,7 @@ class EarlyFusion(nn.Module):
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_width, img_length)
-        :return: feature map
+        :return: 4D torch.Tensor, feature map
         """
         batch_size, n_time_steps, *pic_size = frames.shape
         frames = torch.reshape(frames, (batch_size, n_time_steps, pic_size[0] * pic_size[1] * pic_size[2]))
@@ -85,11 +85,11 @@ class Detector(nn.Module):
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_length, img_width)
-        :return: predictions for bounding boxes positions and probabilities of a vehicle being in the bounding box
+        :return: 4D torch.Tensor, predictions for bounding boxes positions and probabilities of a vehicle being
+        in the bounding box
         """
         feature_map = self.feature_extractor(frames)
         output = self.final_conv(feature_map)
-
         return output
 
 
@@ -159,7 +159,6 @@ class GroundTruthFormer:
                     i, j, k = current_max_box
                     gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
                     gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
-
         return gt_result
 
     def _project_predefined_bbox_to_img(self, params: List[int]) -> np.ndarray:
