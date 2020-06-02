@@ -45,10 +45,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
         model.train()
     else:
         model.eval()
-
+        cumulative_loss = 0
     for i, (frames, bboxes) in enumerate(loader):
-        if len(frames.shape) == 4:
-            frames.unsqueeze_(1)  # adds time dimension if there is none
         frames = frames.to(device)
         preds = model(frames)
         gt_data = gt_former.form_gt(bboxes)
@@ -57,10 +55,13 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            if writer is not None:
+                writer.add_scalar('Loss', loss.item(), epoch * len(loader) + i)
             # TODO: save model based on score
-        if writer is not None:
-            # TODO: add hack for aligning train and val losses
-            writer.add_scalar('Loss', loss.item(), epoch * len(loader) + i)
+        else:
+            cumulative_loss += loss.item()
+    if mode != 'train':
+        writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
 
 
 def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str = 'v1.0-trainval',
