@@ -205,6 +205,7 @@ class GroundTruthFormer:
     def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
         return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
 
+
 # sanity checks: model forward pass and ground truth forming
 # batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
 # frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
@@ -230,4 +231,4 @@ class GroundTruthFormer:
 #             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
 # for gt_box in gt_boxes:
 #     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer.get_polygon(gt_box.numpy()).area}')
+#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
