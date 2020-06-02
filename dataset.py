@@ -73,7 +73,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         Get point cloud converted to voxel grid
         :param ix: index of element to get
         :return: tuple of:
-            lidar voxel grid of shape (depth, height, width),
+            lidar voxel grid of shape (1, depth, height, width),
             list of bounding boxes of (y, x, w, l, a_sin, a_cos)
         """
         if ix >= len(self):
@@ -83,6 +83,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
 
         # Get lidar data
         grid = torch.from_numpy(self._get_point_cloud(filepath))
+        grid.unsqueeze_(0)  # adds time dimension
 
         # Get GT boxes
         boxes = [self._annotation_to_bbox(ann, check_bounds=True)
