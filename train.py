@@ -15,11 +15,16 @@ from model import Detector, GroundTruthFormer
 
 class DetectionLoss(nn.modules.loss._Loss):
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
-                 classification_values_per_unit: int = 1) -> None:
+                 classification_values_per_unit: int = 1,
+                 regression_base_loss: nn.modules.loss._Loss = nn.SmoothL1Loss(),
+                 classification_base_loss: nn.modules.loss._Loss = nn.BCEWithLogitsLoss()) -> None:
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
+        self.regression_base_loss = regression_base_loss
+        self.classification_base_loss = classification_base_loss
+
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         gt_regression = ground_truth[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
@@ -30,8 +35,8 @@ class DetectionLoss(nn.modules.loss._Loss):
         pred_regression *= mask
         gt_regression *= mask  # may be redundant
         # TODO: add normalization
-        return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
-            nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
+        return self.regression_base_loss(pred_regression, gt_regression) + \
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
