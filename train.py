@@ -30,6 +30,7 @@ class DetectionLoss(nn.modules.loss._Loss):
         pred_classification = predictions[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
         pred_regression *= mask
+        gt_regression *= mask  # may be redundant
         # TODO: add normalization
         return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
             nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
