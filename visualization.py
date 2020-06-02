@@ -51,7 +51,7 @@ def draw_bev_with_bboxes(grid: Union["torch.Tensor", np.ndarray],
 
     # Create and add patch for each bbox
     for i, bbox in enumerate(bboxes):
-        vertices = utils.bbox_to_coordinates(bbox, rot=True)[:, [1, 0]]
+        vertices = utils.bbox_to_coordinates(bbox, rot=True)[:, [1, 0]]  # y and x coordinates must be swapped for plotter 
         patch = patches.Polygon(vertices, linewidth=1, edgecolor='r', facecolor='none')
         ax.add_patch(patch)
 
