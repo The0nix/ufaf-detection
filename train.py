@@ -48,8 +48,8 @@ class DetectionLoss(nn.modules.loss._Loss):
         pred_regression *= mask
         gt_regression *= mask  # may be redundant
         # TODO: add normalization
-        return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
-            nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
+        return self.regression_base_loss(pred_regression, gt_regression) + \
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:

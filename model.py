@@ -109,7 +109,6 @@ class GroundTruthFormer:
     :param iou_threshold: threshold above which box is considered match to ground truth
     :param n_bbox_params: number of regression numbers for each bounding box
     """
-
     def __init__(self, gt_frame_size: Tuple[int, int], detector_output_size: Tuple[int, int, int, int],
                  voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4, iou_threshold: int = 0.4,
                  n_bbox_params: int = 6) -> None:
@@ -183,12 +182,12 @@ class GroundTruthFormer:
         :return: tensor of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
         on the original image
         """
-        position, size = params[:2], params[2:]
-        return np.asarray([position[0] * 2 ** self.n_pools,  # find projection through pooling layers
-                           position[1] * 2 ** self.n_pools,
-                           size[0] * self.bbox_scaling,      # scale to real world cars size
-                           size[1] * self.bbox_scaling,
-                           0, 1])                            # zero rotation
+        y, x, width, length = params
+        return np.asarray([y * 2 ** self.n_pools,      # find projection through pooling layers
+                           x * 2 ** self.n_pools,
+                           width * self.bbox_scaling,  # scale to real world cars size
+                           length * self.bbox_scaling,
+                           0, 1])                      # zero rotation
 
     @staticmethod
     def _get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
@@ -205,7 +204,6 @@ class GroundTruthFormer:
     @staticmethod
     def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
         return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
-
 
 # sanity checks: model forward pass and ground truth forming
 # batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
