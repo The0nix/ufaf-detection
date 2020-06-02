@@ -100,7 +100,7 @@ class GroundTruthFormer:
     """
     Forms tensor of ground truth data to calculate loss.
     :param gt_frame_size: tuple of the length and width of the frame (expected to be equal among all frames)
-    :param detector_output_size: Tuple(int, int, int, int), shape of the detector output
+    :param detector_output_size: Tuple(int, int, int, int), shape of the detector's output
     :param voxels_per_meter: number of voxels per meter in the frames
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
