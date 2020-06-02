@@ -9,6 +9,8 @@ import torch
 from torch import nn
 from shapely.geometry import Polygon
 
+import utils
+
 
 class EarlyFusion(nn.Module):
     """
@@ -178,24 +180,10 @@ class GroundTruthFormer:
         cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
         :param parametrized_box: array of ground truth bounding box geometrical parameters (center_y, center_x,
         width, length, sin(a), cos(a))
+        :param rot: perform rotation
         :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
         """
-        i, j = np.asarray(parametrized_box[:2])
-        width, length = parametrized_box[2:4] + np.asarray([1, 1])  # converts borders calculus to center
-
-        left_top = [j - length // 2, i - width // 2]
-        right_top = [j + length // 2 + length % 2 - 1, i - width // 2]
-        right_bottom = [j + length // 2 + length % 2 - 1, i + width // 2 + width % 2 - 1]
-        left_bottom = [j - length // 2, i + width // 2 + width % 2 - 1]
-        vertices = [left_top, right_top, right_bottom, left_bottom]
-        if rot:
-            sin, cos = parametrized_box[4:]
-            rotation = np.asarray([[cos, -sin], [sin, cos]])
-            vertices_centered = [np.asarray([vertex[0] - i, vertex[1] - j]) for vertex in vertices]
-            vertices_centered_rotated = [tuple(rotation @ vertex.reshape(-1, 1))
-                                         for vertex in vertices_centered]
-            return Polygon([(vertex[0] + i, vertex[1] + j) for vertex in vertices_centered_rotated])
-        return Polygon(vertices)
+        return Polygon(utils.bbox_to_coordinates(parametrized_box, rot))
 
     @staticmethod
     def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
