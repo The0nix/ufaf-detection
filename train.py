@@ -24,14 +24,15 @@ class DetectionLoss(nn.modules.loss._Loss):
     """
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1,
-                 regression_base_loss: nn.modules.loss._Loss = nn.SmoothL1Loss(),
-                 classification_base_loss: nn.modules.loss._Loss = nn.BCEWithLogitsLoss()) -> None:
+                 regression_base_loss: Optional[nn.modules.loss._Loss] = None,
+                 classification_base_loss: Optional[nn.modules.loss._Loss] = None) -> None:
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
-        self.regression_base_loss = regression_base_loss
-        self.classification_base_loss = classification_base_loss
+        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
+        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
+        
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         """
