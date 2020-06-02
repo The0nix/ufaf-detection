@@ -53,7 +53,7 @@ class EarlyFusion(nn.Module):
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_width, img_length)
-        :return: 4D torch.Tensor, feature map
+        :return: 4D torch.Tensor feature map
         """
         batch_size, n_time_steps, *pic_size = frames.shape
         frames = torch.reshape(frames, (batch_size, n_time_steps, pic_size[0] * pic_size[1] * pic_size[2]))
@@ -65,7 +65,7 @@ class EarlyFusion(nn.Module):
 
 class Detector(nn.Module):
     """
-    Predicts 2D bounding boxes for cars objects in the provided frames.
+    Predicts 2D bounding boxes for cars objects in provided frames.
     :param img_depth: int, discretized height of the image from BEV
     :param n_time_steps: int, number of frames to be processed
     :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
@@ -74,7 +74,7 @@ class Detector(nn.Module):
     on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
     BB containing a vehicle
     """
-    def __init__(self, img_depth: int, n_time_steps: int = 1, n_predefined_boxes: int = 6):
+    def __init__(self, img_depth: int, n_time_steps: int = 1, n_predefined_boxes: int = 6) -> None:
         super().__init__()
         self.feature_extractor = EarlyFusion(img_depth, n_time_steps=n_time_steps)
 
@@ -100,7 +100,7 @@ class GroundTruthFormer:
     """
     Forms tensor of ground truth data to calculate loss.
     :param gt_frame_size: tuple of the length and width of the frame (expected to be equal among all frames)
-    :param detector_output_size: Tuple(int, int, int, int), shape of the detector output
+    :param detector_output_size: Tuple(int, int, int, int), shape of the detector's output
     :param voxels_per_meter: number of voxels per meter in the frames
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor

@@ -13,9 +13,10 @@ from dataset import create_nuscenes, NuscenesBEVDataset
 from model import Detector, GroundTruthFormer
 
 
-class DetectionLoss:
+class DetectionLoss(nn.modules.loss._Loss):
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1) -> None:
+        super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
@@ -30,6 +31,7 @@ class DetectionLoss:
         pred_classification = predictions[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
         pred_regression *= mask
+        gt_regression *= mask  # may be redundant
         # TODO: add normalization
         return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
             nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
@@ -46,7 +48,7 @@ def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
     return auc(precision, recall)
 
 
-def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss, gt_former: GroundTruthFormer,
+def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: torch.optim.optimizer.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
     if mode == 'train':
@@ -57,7 +59,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     for i, (frames, bboxes) in enumerate(loader):
         frames = frames.to(device)
         preds = model(frames)
-        gt_data = gt_former.form_gt(bboxes)
+        gt_data = gt_former.form_gt(bboxes).to(device)
         loss = criterion(preds, gt_data)
         if mode == 'train':
             optimizer.zero_grad()
