@@ -1,4 +1,5 @@
 import datetime
+from typing import List, Tuple
 
 from sklearn.metrics import auc, precision_recall_curve
 import torch
@@ -7,7 +8,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from tqdm.auto import trange
+from tqdm.auto import trange, tqdm
 
 from dataset import create_nuscenes, NuscenesBEVDataset
 from model import Detector, GroundTruthFormer
@@ -57,9 +58,21 @@ def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
     return auc(precision, recall)
 
 
+def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]]) \
+        -> Tuple[torch.Tensor, List[List[torch.Tensor]]]:
+    """
+    Collate frames and bounding boxes into proper batch
+    :param batch: list of tuples (frame tensor, list of bboxes)
+    :return: tuple of (frames tensor, lists of lists of bboxes)
+    """
+    grid = torch.stack([b[0] for b in batch])
+    bboxes = [b[1] for b in batch]
+    return grid, bboxes
+
+
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None,
-              optimizer: torch.optim.optimizer.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
+              optimizer: torch.optim.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
     """
     Run one epoch for model. Can be used for both training and validation.
     :param model: pytorch model to be trained or validated
@@ -80,7 +93,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     else:
         raise ValueError(f'Unknown mode: {mode}')
 
-    for i, (frames, bboxes) in enumerate(loader):
+    for i, (frames, bboxes) in enumerate(tqdm(loader, desc="Batch", leave=False)):
         frames = frames.to(device)
         preds = model(frames)
         gt_data = gt_former.form_gt(bboxes).to(device)
@@ -132,7 +145,7 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     nuscenes = create_nuscenes(data_path)
     dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
-                              pin_memory=True)
+                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     print('Loaders are ready.\n',
           f'Number of batches in train loader: {len(train_loader)}\n')
           # f'Number of bathces in validation loader: {len(val_loader)}')
@@ -146,7 +159,7 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
 
-    for epoch in trange(n_epochs):
+    for epoch in trange(n_epochs, desc="Epoch"):
         run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train', writer=train_writer,
                   optimizer=optimizer)
         scheduler.step()
