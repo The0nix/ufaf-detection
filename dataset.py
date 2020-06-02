@@ -1,12 +1,11 @@
-import os
 from typing import Union, Tuple, List, Dict, Collection, Iterable
 
 import numpy as np
 import torch
 import torch.utils.data as torchdata
 import open3d as o3d
+from nuscenes.utils import data_classes as nuscenes_data_classes
 from nuscenes.nuscenes import NuScenes
-from scipy.spatial.transform import Rotation
 
 
 def point_in_bounds(point: Union[Collection, Iterable],
@@ -51,13 +50,14 @@ class NuscenesBEVDataset(torchdata.Dataset):
         >>> grid, boxes = ds[0]
     """
     def __init__(self, nuscenes: NuScenes, voxels_per_meter: int = 5,
-                 crop_min_bound: Tuple[int, int, int] = (-40, -72, -2),
-                 crop_max_bound: Tuple[int, int, int] = (40, 72, 3.5),
+                 crop_min_bound: Tuple[int, int, int] = (-72, -40, -2),
+                 crop_max_bound: Tuple[int, int, int] = (72, 40, 3.5),
                  n_scenes: int = None) -> None:
         self.voxels_per_meter = voxels_per_meter
         self.voxel_size = 1 / voxels_per_meter
-        self.crop_min_bound = np.array(crop_min_bound)
-        self.crop_max_bound = np.array(crop_max_bound)
+        # Change to YXZ, because lidar's "forward" is Y (see https://www.nuscenes.org/data-collection)
+        self.crop_min_bound = np.array(crop_min_bound)[[1, 0, 2]]
+        self.crop_max_bound = np.array(crop_max_bound)[[1, 0, 2]]
         self.grid_size = \
             tuple(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)[[2, 0, 1]].astype(int))
 
@@ -76,20 +76,17 @@ class NuscenesBEVDataset(torchdata.Dataset):
             lidar voxel grid of shape (depth, height, width),
             list of bounding boxes of (y, x, w, l, a_sin, a_cos)
         """
+        if ix >= len(self):
+            raise IndexError(f"Index {ix} is out of bounds")
         sample = self.nuscenes.sample[ix]
-        sample_data = self.nuscenes.get("sample_data", sample["data"]["LIDAR_TOP"])
+        filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
 
         # Get lidar data
-        filename = sample_data["filename"]
-        filepath = os.path.join(self.nuscenes.dataroot, filename)
         grid = torch.from_numpy(self._get_point_cloud(filepath))
 
         # Get GT boxes
-        ego_pose = self.nuscenes.get("ego_pose", sample_data["ego_pose_token"])
-        annotations = [self.nuscenes.get("sample_annotation", id_) for id_ in sample["anns"]]
-        boxes = [self._annotation_to_bbox(ann, ego_pose, check_bounds=True)
-                 for ann in annotations
-                 if ann["category_name"].startswith("vehicle")]
+        boxes = [self._annotation_to_bbox(ann, check_bounds=True)
+                 for ann in annotations if ann.name.startswith("vehicle")]
         boxes = [b for b in boxes if b is not None]
 
         return grid, boxes
@@ -111,7 +108,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         pcd = pcd.crop(o3d.geometry.AxisAlignedBoundingBox(self.crop_min_bound, self.crop_max_bound - self.voxel_size))
         grid = o3d.geometry.VoxelGrid.create_from_point_cloud(pcd, voxel_size=self.voxel_size)
         grid = self._voxelgrid_to_numpy(grid)
-        grid = np.rollaxis(grid, 2, 0, )
+        grid = np.rollaxis(grid, 2, 0)
 
         return grid
 
@@ -131,24 +128,24 @@ class NuscenesBEVDataset(torchdata.Dataset):
         result[tuple(voxels_ix.T)] = 1  # If this breaks, god help you
         return result
 
-    def _annotation_to_bbox(self, annotation: Dict, ego_pose: Dict, check_bounds: bool = False) \
+    def _annotation_to_bbox(self, annotation: nuscenes_data_classes.Box, check_bounds: bool = False) \
             -> Union[torch.Tensor, None]:
         """
         Converts annotations to model-friendly bounding box
         if check_bounds is True, returns None if center of the annotation is out of bounds
-        :param annotation: dict containing information about the annotation (nuscenes object)
-        :param ego_pose: dict containing the of the LiDAR (nuscenes object)
-        :param check_bounds: whether to return None if box is out of bounds
+        :param annotation: nuscenes Box containing information about the annotation
+        must be received with nuscenes.get_sample_data(id, use_flat_vehicle_coordinates=True)
+        :param check_bounds: if box is out of current dataset bounds, return None
         :return: torch.Tensor (y, x, w, l, a_sin, a_cos)
         """
-        translation = np.array(annotation["translation"]) - np.array(ego_pose["translation"])
-        if check_bounds and not point_in_bounds(translation, self.crop_min_bound, self.crop_max_bound):
+        if check_bounds and not point_in_bounds(annotation.center, self.crop_min_bound, self.crop_max_bound):
             return None
-        x, y = translation[:2]
-        w, l = annotation["size"][:2]
+        y, x, _ = np.array(annotation.center) * self.voxels_per_meter
+        x = x - self.crop_min_bound[1] * self.voxels_per_meter      # in crop bounds LiDAR's X is our Y
+        y = y - self.crop_min_bound[0] * self.voxels_per_meter      #
+        w, l, _ = np.array(annotation.wlh) * self.voxels_per_meter
 
-        rotation = Rotation(annotation["rotation"]) * Rotation(ego_pose["rotation"]).inv()
-        a_rotated = rotation.apply([1, 0, 0])
+        a_rotated = annotation.rotation_matrix @ np.array([1, 0, 0])
         a_cos = a_rotated[0]
         a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
