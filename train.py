@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional
 
 from sklearn.metrics import auc, precision_recall_curve
 import torch
