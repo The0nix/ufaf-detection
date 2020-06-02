@@ -104,13 +104,15 @@ class GroundTruthFormer:
     :param voxels_per_meter: number of voxels per meter in the frames
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
+    :param iou_threshold: threshold above which box is considered match to ground truth
     """
     def __init__(self, gt_frame_size: Tuple[int, int], detector_output_size: Tuple[int, int, int, int],
-                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4) -> None:
+                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4, iou_threshold: int = 0.4) -> None:
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
         self.batch_size = detector_output_size[0]
         self.detector_out_depth, self.detector_out_width, self.detector_out_length = detector_output_size[1:]
         self.n_pools = n_pools
+        self.iou_threshold = iou_threshold
         self.bbox_scaling = car_size * voxels_per_meter
         predefined_bboxes = [[1, 1], [1, 2], [2, 1], [1, 6], [6, 1], [2, 2]]
         self.predefined_bboxes = [[dim for dim in box] for box in predefined_bboxes]
@@ -123,12 +125,11 @@ class GroundTruthFormer:
         """
         return self.form_gt(gt_bboxes)
 
-    def form_gt(self, gt_bboxes: List[List[torch.Tensor]], iou_threshold: int = 0.4) -> torch.Tensor:
+    def form_gt(self, gt_bboxes: List[List[torch.Tensor]]) -> torch.Tensor:
         """
         Builds 4D torch.Tensor with a shape of the detector output for the batch of frames.
         :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
         center coordinates, length, width, sin(a) and cos(a)
-        :param iou_threshold: threshold above which box is considered match to ground truth
         :return: 4D torch.Tensor of ground truth data
         """
         gt_result = torch.zeros(self.batch_size, self.detector_out_depth, self.detector_out_width,
@@ -145,9 +146,9 @@ class GroundTruthFormer:
                             if (i, j, k) in used_boxes:
                                 continue
                             candidate_box_parametrized = self._project_predefined_bbox_to_img([i, j, *candidate_box])
-                            iou = self.calc_iou_from_polygons(self.get_polygon(gt_box.numpy()),
-                                                              self.get_polygon(candidate_box_parametrized, rot=False))
-                            if iou > iou_threshold:
+                            iou = self.calc_iou_from_polygons(self._get_polygon(gt_box.numpy()),
+                                                              self._get_polygon(candidate_box_parametrized, rot=False))
+                            if iou > self.iou_threshold:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
                                 gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
@@ -183,7 +184,7 @@ class GroundTruthFormer:
                            0, 1])                            # zero rotation
 
     @staticmethod
-    def get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
+    def _get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
         """
         Get Polygon object from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
         cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
