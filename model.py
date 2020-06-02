@@ -2,7 +2,7 @@ import cProfile
 from collections import defaultdict
 from math import sqrt
 from time import time
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -99,18 +99,19 @@ class GroundTruthFormer:
     :param gt_frame_size: tuple of the length and width of the frame (expected to be equal among all frames)
     :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
     center coordinates, length, width, sin(a) and cos(a)
-    :param detector_output: 4D tensor, output of the detector
+    :param detector_output_size: Tuple(int, int, int, int), shape of the detector output
     :param voxels_per_meter: number of voxels per meter in the frames
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
     """
-    def __init__(self, gt_frame_size: Tuple[int, int], gt_bboxes: List[torch.Tensor], detector_output: torch.Tensor,
-                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4) -> None:
+    def __init__(self, gt_frame_size: Tuple[int, int], gt_bboxes: List[List[torch.Tensor]],
+                 detector_output_size: Tuple[int, int, int, int], voxels_per_meter: int = 5,
+                 car_size: int = 5, n_pools: int = 4) -> None:
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
         self.gt_bboxes = gt_bboxes
-        self.batch_size = detector_output.shape[0]
-        self.detector_out_width, self.detector_out_length = detector_output.shape[-2:]
-        self.detector_output = detector_output
+        self.batch_size = detector_output_size[0]
+        print(detector_output_size)
+        self.detector_out_depth, self.detector_out_width, self.detector_out_length = detector_output_size[1:]
         self.n_pools = n_pools
         self.bbox_scaling = car_size * voxels_per_meter
         predefined_bboxes = [[1, 1], [1, 2], [2, 1], [1, 6], [6, 1], [2, 2]]
@@ -125,7 +126,8 @@ class GroundTruthFormer:
         :param iou_threshold: threshold above which box is considered match to ground truth
         :return: 4D torch.Tensor of ground truth data
         """
-        gt_result = torch.zeros_like(self.detector_output)
+        gt_result = torch.zeros(self.batch_size, self.detector_out_depth, self.detector_out_width,
+                                self.detector_out_length)
         for n in range(self.batch_size):
             gt_with_candidate_matches = defaultdict(list)
             used_boxes = set()
@@ -208,28 +210,28 @@ class GroundTruthFormer:
 
 
 # sanity checks: model forward pass and ground truth forming
-# batch_size, time_steps, depth, width, length = 8, 5, 20, 128, 128
-# frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
-# gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
-#
-# net = Detector(depth).cuda()
-# begin = time()
-# model_out = net(frames)
-# end = time()
-# print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
-#
-# cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out)()")
-#
-# gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out)
-# begin = time()
-# gt = gt_former()
-# end = time()
-# print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
-#
-# # sanity check: rectangle area must not change after rotation
-# gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
-#             torch.tensor([1, 2, 5, 5, 0, 1]),
-#             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
-# for gt_box in gt_boxes:
-#     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box).area}')
+batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
+frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
+gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
+
+net = Detector(depth).cuda()
+begin = time()
+model_out = net(frames)
+end = time()
+print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
+
+cProfile.run("GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)()")
+
+gt_former = GroundTruthFormer((128, 128), gt_bboxes, model_out.shape)
+begin = time()
+gt = gt_former()
+end = time()
+print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
+
+# sanity check: rectangle area must not change after rotation
+gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
+            torch.tensor([1, 2, 5, 5, 0, 1]),
+            torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
+for gt_box in gt_boxes:
+    print(f'True area: {gt_box[2] * gt_box[3]}', end='')
+    print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
