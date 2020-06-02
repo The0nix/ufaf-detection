@@ -22,9 +22,6 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.classification_values_per_unit = classification_values_per_unit
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
-        return self.forward(predictions, ground_truth)
-
-    def forward(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         gt_regression = ground_truth[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
         gt_classification = ground_truth[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         pred_regression = predictions[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
