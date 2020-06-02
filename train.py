@@ -39,7 +39,7 @@ def auc_pr(preds: torch.Tensor, gt_classes: torch.Tensor) -> float:
     raise NotImplementedError
 
 
-def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss, gt_former: GroundTruthFormer,
+def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: torch.optim.optimizer.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
     if mode == 'train':
