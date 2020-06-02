@@ -12,7 +12,7 @@ from dataset import create_nuscenes, NuscenesBEVDataset
 from model import Detector, GroundTruthFormer
 
 
-class DetectionLoss():
+class DetectionLoss:
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1) -> None:
         self.prediction_units_per_cell = prediction_units_per_cell
@@ -27,7 +27,8 @@ class DetectionLoss():
         gt_classification = ground_truth[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         pred_regression = predictions[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
         pred_classification = predictions[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
-        # TODO: mask by classification labels
+        mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
+        pred_regression *= mask
         # TODO: add normalization
         return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
             nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
@@ -37,9 +38,9 @@ def auc_pr(preds: torch.Tensor, gt_classes: torch.Tensor) -> float:
     raise NotImplementedError
 
 
-def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss, epoch: int, mode: str = 'train',
-              writer: SummaryWriter = None, optimizer: torch.optim.optimizer.Optimizer = None,
-              device: torch.device = torch.device('cuda')) -> None:
+def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss, gt_former: GroundTruthFormer,
+              epoch: int, mode: str = 'train', writer: SummaryWriter = None,
+              optimizer: torch.optim.optimizer.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
     if mode == 'train':
         model.train()
     else:
@@ -50,8 +51,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             frames.unsqueeze_(1)  # adds time dimension if there is none
         frames = frames.to(device)
         preds = model(frames)
-        gt_former = GroundTruthFormer(frames.shape[-2:], bboxes, preds)  # FIXME: init it once in the train function
-        gt_data = gt_former.form_gt()
+        gt_data = gt_former.form_gt(bboxes)
         loss = criterion(preds, gt_data)
         if mode == 'train':
             optimizer.zero_grad()
@@ -97,9 +97,12 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     criterion = DetectionLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
+    detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
+        frame_length // (2 ** model.n_pools)
+    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
 
     for epoch in trange(n_epochs):
-        run_epoch(model, train_loader, criterion, epoch, mode='train', writer=train_writer,
+        run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train', writer=train_writer,
                   optimizer=optimizer)
         scheduler.step()
         # run_epoch(model, val_loader, criterion, epoch, mode='val', writer=val_writer)
