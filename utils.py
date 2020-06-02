@@ -4,7 +4,7 @@ import numpy as np
 def bbox_to_coordinates(bbox: np.ndarray, rot: bool = True):
     """
     Get vertices from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
-    cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
+    cos(a).
     :param bbox: array of ground truth bounding box geometrical parameters (center_y, center_x,
     width, length, sin(a), cos(a))
     :param rot: perform rotation
