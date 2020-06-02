@@ -1,5 +1,6 @@
 import datetime
 
+from sklearn.metrics import auc, precision_recall_curve
 import torch
 from torch import nn
 from torch.optim import Adam
@@ -34,8 +35,15 @@ class DetectionLoss:
             nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
 
 
-def auc_pr(preds: torch.Tensor, gt_classes: torch.Tensor) -> float:
-    raise NotImplementedError
+def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
+    """
+    Compute area under precision-recall curve
+    :param gt_classes: 4D torch.Tensor of of ground truth classes labels
+    :param preds: 4D torch.Tensor of predicted class probabilities
+    :return: float, Precision-Recall AUC
+    """
+    precision, recall, _ = precision_recall_curve(gt_classes.numpy().flatten(), preds.numpy().flatten())
+    return auc(precision, recall)
 
 
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss, gt_former: GroundTruthFormer,
