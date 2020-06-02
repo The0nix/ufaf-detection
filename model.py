@@ -74,7 +74,7 @@ class Detector(nn.Module):
     on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
     BB containing a vehicle
     """
-    def __init__(self, img_depth: int, n_time_steps: int = 1, n_predefined_boxes: int = 6):
+    def __init__(self, img_depth: int, n_time_steps: int = 1, n_predefined_boxes: int = 6) -> None:
         super().__init__()
         self.feature_extractor = EarlyFusion(img_depth, n_time_steps=n_time_steps)
 
