@@ -50,7 +50,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     for i, (frames, bboxes) in enumerate(loader):
         frames = frames.to(device)
         preds = model(frames)
-        gt_data = gt_former.form_gt(bboxes)
+        gt_data = gt_former.form_gt(bboxes).to(device)
         loss = criterion(preds, gt_data)
         if mode == 'train':
             optimizer.zero_grad()
