@@ -10,8 +10,8 @@ def bbox_to_coordinates(bbox: np.ndarray, rot: bool = True):
     :param rot: perform rotation
     :return: list of 4 tuples of (x, y) coordinates: [left_top, right_top, right_bottom, left_bottom]
     """
-    y, x = np.asarray(bbox[:2])
-    width, length = bbox[2:4]  # converts borders calculus to center
+    y, x = bbox[:2]
+    width, length = bbox[2:4]
 
     left_top = [y - width / 2, x - length / 2]
     right_top = [y - width / 2, x + length / 2]
