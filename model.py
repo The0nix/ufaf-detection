@@ -53,7 +53,7 @@ class EarlyFusion(nn.Module):
         """
         :param frames: set of frames for several time steps (default 5),
         expected shape is (batch_size, time_steps, img_depth, img_width, img_length)
-        :return: 4D torch.Tensor, feature map
+        :return: 4D torch.Tensor feature map
         """
         batch_size, n_time_steps, *pic_size = frames.shape
         frames = torch.reshape(frames, (batch_size, n_time_steps, pic_size[0] * pic_size[1] * pic_size[2]))
