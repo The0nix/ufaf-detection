@@ -119,7 +119,7 @@ class GroundTruthFormer:
         """
         :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
         center coordinates, length, width, sin(a) and cos(a)
-        :return:
+        :return: ground truth data
         """
         return self.form_gt(gt_bboxes)
 
