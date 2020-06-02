@@ -22,7 +22,7 @@ def bbox_to_coordinates(bbox: np.ndarray, rot: bool = True):
         sin, cos = bbox[4:]
         rotation = np.asarray([[-sin, cos], [cos, sin]])
         vertices_centered = [np.asarray([vertex[0] - y, vertex[1] - x]) for vertex in vertices]
-        vertices_centered_rotated = [tuple(rotation @ np.array(vertex).reshape(-1, 1))
+        vertices_centered_rotated = [tuple(rotation @ vertex.reshape(-1, 1))
                                      for vertex in vertices_centered]
         vertices = [(vertex[0] + y, vertex[1] + x) for vertex in vertices_centered_rotated]
         vertices = np.array(vertices).squeeze(2)
