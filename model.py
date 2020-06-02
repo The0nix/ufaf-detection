@@ -65,7 +65,7 @@ class EarlyFusion(nn.Module):
 
 class Detector(nn.Module):
     """
-    Predicts 2D bounding boxes for cars objects in the provided frames.
+    Predicts 2D bounding boxes for cars objects in provided frames.
     :param img_depth: int, discretized height of the image from BEV
     :param n_time_steps: int, number of frames to be processed
     :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
