@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 def auto_ax(func):
     """
     Decorator to automatically create plt.Axes in function arguments.
-    If added to function with ax keyword argumen, it will automatically create ax object if that argument is None
+    If added to function with ax keyword argument, it will automatically create plt.Axes object if that argument is None
     :return: wrapped function
     """
     def wrapped(*args, ax: Optional[plt.Axes] = None, **kwargs):
