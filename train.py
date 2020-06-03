@@ -80,7 +80,7 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None, optimizer: torch.optim.Optimizer = None,
-              device: torch.device = torch.device('cuda')) -> Optional[float, float]:
+              device: torch.device = torch.device('cuda')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
     :param model: pytorch model to be trained or validated
