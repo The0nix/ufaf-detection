@@ -64,7 +64,7 @@ class DetectionLoss(nn.modules.loss._Loss):
         negative_probs_flat = negative_probs.view(-1, 1)
         negative_probs_flat[torch.topk(negative_probs_flat, k=n_values_to_eliminate,
                                        largest=False, dim=0).indices] = 0  # filter low negative probabilities
-        negative_probs = negative_probs_flat.view(negative_probs.size())
+        negative_probs = negative_probs_flat.view_as(negative_probs)
         pred_classification *= gt_classification  # leave only positive predictions
         pred_classification += negative_probs     # add mined negative predictions
         return self.regression_base_loss(pred_regression, gt_regression) + \
