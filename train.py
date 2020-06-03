@@ -216,8 +216,8 @@ def train(data_path: str, model_path: str, tb_path: str = None,
         if val_loss < best_val_loss and val_score > best_val_score:
             best_val_loss, best_val_score = val_loss, val_score
             torch.save(model.state_dict(), f'{model_path}/{date}.pth')
-            print('Model checkpoint is saved.\n',
-                  f'Cumulative loss: {val_loss:.3f}, score: {val_score:.3f}\n')
+            print('\nModel checkpoint is saved.\n',
+                  f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
 def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1.0-trainval',
