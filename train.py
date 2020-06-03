@@ -157,7 +157,7 @@ def train(data_path: str, model_path: str, tb_path: str = None,
     :param model_path: relative path to save model weights
     :param tb_path: name of the folder for tensorboard data to be store in
     :param n_scenes: number of scenes in dataset
-    :param version: version of the dataset
+    :param nuscenes_version: version of the dataset
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     :param n_epochs: total number of epochs to train the model
@@ -184,7 +184,7 @@ def train(data_path: str, model_path: str, tb_path: str = None,
         print(f'No tensorboard logging will be performed\n')
 
     # set up dataset and model
-    nuscenes = create_nuscenes(data_path, version)
+    nuscenes = create_nuscenes(data_path, nuscenes_version)
     train_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='train')
     val_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='val')
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
