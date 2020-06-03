@@ -171,7 +171,6 @@ class GroundTruthFormer:
         [batch_size, detector_out_width, detector_out_length, n_predefined_boxes, n_bbox_params]
         and represents regression target
         """
-        gt_bboxes = [bbox.to(self.device) for bbox in gt_bboxes]
         gt_bboxes_coords = [utils.bbox_to_coordinates(gt_bboxes[n], rot=False).to(self.device)
                             for n in range(self.batch_size)]
         classification_target = []
