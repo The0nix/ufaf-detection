@@ -77,8 +77,8 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
 
 
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
-              gt_former: GroundTruthFormer,
-              epoch: int, mode: str = 'train', writer: SummaryWriter = None, optimizer: torch.optim.Optimizer = None,
+              gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
+              optimizer: torch.optim.Optimizer = None,
               device: torch.device = torch.device('cuda')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
@@ -118,7 +118,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
         else:
             cumulative_loss += loss.item()
             cumulative_score += score
-    if mode != 'train':
+    if mode == 'val':
         writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
         writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
         return cumulative_loss, cumulative_score
@@ -148,7 +148,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
     # set up tensorboard writer
     if tb_path is not None:
         date = datetime.datetime.now().strftime('%b-%d-%Y-%H:%M:%S')
-        train_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/train/')  # keeping only one and creating folders inside
+        train_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/train')
         val_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/val')
         print(f'Logging tensorboard data to directory: {tb_path}/{date}\n')
     else:
@@ -173,7 +173,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
     optimizer = Adam(model.parameters(), lr=1e-4)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
-                         frame_length // (2 ** model.n_pools)
+        frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
 
     best_val_loss, best_val_score = None, None
@@ -184,7 +184,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
         scheduler.step()
         val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch, mode='val', writer=val_writer)
         # saving model weights in case validation loss AND score are better
-        if not best_val_loss or (val_loss < best_val_loss and val_score > best_val_score):
+        if best_val_loss is not None or (val_loss < best_val_loss and val_score > best_val_score):
             best_val_loss, best_val_score = val_loss, val_score
             torch.save(model.state_dict(), model_path)
             print('Model checkpoint is saved.\n',
@@ -228,5 +228,5 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
                          frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
-    eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val', writer=None)
+    eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val')
     return eval_loss, eval_score
