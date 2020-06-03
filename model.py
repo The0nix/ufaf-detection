@@ -176,7 +176,7 @@ class GroundTruthFormer:
                             for n in range(self.batch_size)]
         classification_target = []
         regression_target = []
-        prior_boxes_params = self.prior_boxes_params.reshape(-1, self.n_bbox_params)
+        prior_boxes_params = self.prior_boxes_params.view(-1, self.n_bbox_params)
         prior_boxes_coords = self.prior_boxes_coords.view(-1, 4, 2)  # each box is 4 points of 2 coordinates)
         for n in range(self.batch_size):
             iou = utils.calc_iou(gt_bboxes_coords[n], prior_boxes_coords)  # matrix of size [n_gt_boxes, n_prior_boxes]
