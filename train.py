@@ -185,7 +185,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
           f'Number of batches in train loader: {len(train_loader)}\n'
           f'Number of bathces in validation loader: {len(val_loader)}')
 
-    frame_depth, frame_width, frame_length = dataset.grid_size
+    frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
     criterion = DetectionLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
@@ -237,7 +237,7 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1
     print('Eval loader is ready.\n',
           f'Number of batches in eval loader: {len(eval_loader)}\n')
 
-    frame_depth, frame_width, frame_length = dataset.grid_size
+    frame_depth, frame_width, frame_length = eval_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
     # load model from checkpoint
     model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
