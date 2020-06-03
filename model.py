@@ -91,7 +91,7 @@ class Detector(nn.Module):
     def forward(self, frames: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         :param frames: set of frames for several time steps (default 5),
-        expected shape is [batch_size, time_steps, img_depth, img_length, img_width]
+        expected shape is [batch_size, time_steps, img_depth, img_width, img_length]
         :return: Tuple of two 4D torch.Tensor of predicted data:
         First tensor is of shape [batch_size, detector_out_width, detector_out_length, n_predefined_boxes]
         and represents classification target with ones for boxes with associated GT boxes
