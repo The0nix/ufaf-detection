@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     if args.command == "train":
         params = load_yaml(args.config) if args.config else {}
-        train.train(args.data, **params)
+        train.train(args.data, args.output, **params)
     elif args.command == "eval":
         params = load_yaml(args.config) if args.config else {}
         train.eval(args.data, args.model, **params)
