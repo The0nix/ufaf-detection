@@ -43,6 +43,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
     :param crop_max_bound: max bound of the box to crop point cloud to in by X, Y and Z in meters
     :param n_scenes: if not None represents the number of scenes downloaded
     :param mode: `train` or `val', create different datasets for train and validation
+    :param train_ratio: ratio of samples to include in train set (other will be in validation)
     (if you downloaded only a part of the dataset)
 
     Example:
@@ -53,7 +54,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
     def __init__(self, nuscenes: NuScenes, voxels_per_meter: int = 5,
                  crop_min_bound: Tuple[int, int, int] = (-72, -40, -2),
                  crop_max_bound: Tuple[int, int, int] = (72, 40, 3.5),
-                 n_scenes: int = None, mode: str = 'train') -> None:
+                 n_scenes: int = None, mode: str = "train", train_ratio: float = 0.9) -> None:
+        assert mode in ("train", "val"), f"Unknown mode: {mode}"
         self.voxels_per_meter = voxels_per_meter
         self.voxel_size = 1 / voxels_per_meter
         # Change to YXZ, because lidar's "forward" is Y (see https://www.nuscenes.org/data-collection)
@@ -62,14 +64,18 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.grid_size = \
             tuple(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)[[2, 0, 1]].astype(int))
 
-        # Initialize nuscenes dataset and determine it's size
+        # Initialize nuscenes dataset, skip samples without vehicles and determine dataset's size
         self.nuscenes = nuscenes
-        self.n_scenes = n_scenes or len(self.nuscenes.scene)
-        self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
-        self.train_split = int(0.8 * self.n_samples)
         self.mode = mode
+        self.n_scenes = n_scenes or len(self.nuscenes.scene)
+        self.n_samples_total = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
+        self.samples_ix = [ix for ix in range(self.n_samples_total) if self._sample_has_vehicles(ix)]
+        self.n_samples = len(self.samples_ix)
+        self.train_split = int(train_ratio * self.n_samples_total)
 
-    def __getitem__(self, ix: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+        # TODO: Add train/validation split
+
+    def __getitem__(self, ix: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get point cloud converted to voxel grid
         :param ix: index of element to get
@@ -79,9 +85,9 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         if ix >= len(self):
             raise IndexError(f"Index {ix} is out of bounds")
-
         if self.mode == 'val':
             ix += self.train_split
+        ix = self.samples_ix[ix]  # Only get samples from our subset of indexes with vehicles
 
         sample = self.nuscenes.sample[ix]
         filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
@@ -89,10 +95,12 @@ class NuscenesBEVDataset(torchdata.Dataset):
         # Get lidar data
         grid = torch.from_numpy(self._get_point_cloud(filepath))
         grid.unsqueeze_(0)  # adds time dimension
+
         # Get GT boxes
         boxes = [self._annotation_to_bbox(ann, check_bounds=True)
                  for ann in annotations if ann.name.startswith("vehicle")]
         boxes = [b for b in boxes if b is not None]
+        boxes = torch.stack(boxes) if boxes else torch.empty(0, 0)
 
         return grid, boxes
 
@@ -158,3 +166,16 @@ class NuscenesBEVDataset(torchdata.Dataset):
         a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
         return torch.tensor([y, x, w, l, a_sin, a_cos])
+
+    def _sample_has_vehicles(self, ix: int) -> bool:
+        """
+        Check if sample has vehicles in it
+        :param ix: index of the sample
+        :return: whether sample has vehicles
+        """
+        sample = self.nuscenes.sample[ix]
+        filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
+        for ann in annotations:
+            if ann.name.startswith("vehicle") and point_in_bounds(ann.center, self.crop_min_bound, self.crop_max_bound):
+                return True
+        return False
