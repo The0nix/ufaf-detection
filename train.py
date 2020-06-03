@@ -1,10 +1,11 @@
 import datetime
-from typing import Optional, List, Tuple
+from typing import Optional, Union, List, Tuple
 
 from sklearn.metrics import auc, precision_recall_curve
 import torch
 from torch import nn
 from torch.optim import Adam
+from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -33,23 +34,25 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.classification_values_per_unit = classification_values_per_unit
         self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
         self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
-        
 
-    def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
+    def __call__(self, predictions: Tuple[torch.Tensor, torch.Tensor],
+                 ground_truth: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
         """
         Compute loss
         :param predictions: model output
         :param ground_truth: ground truth data
+        Both are tuples of two 4D torch.Tensor of data:
+        First tensor is of shape [batch_size, detector_out_width, detector_out_length, n_predefined_boxes]
+        and represents classification target with ones for boxes with associated GT boxes
+        Second tensor is of shape
+        [batch_size, detector_out_width, detector_out_length, n_predefined_boxes, n_bbox_params]
+        and represents regression target
         :return: one element torch.Tensor loss
         """
-        gt_regression = ground_truth[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
-        gt_classification = ground_truth[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
-        pred_regression = predictions[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
-        pred_classification = predictions[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
-        mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
-        pred_regression *= mask
-        gt_regression *= mask  # may be redundant
-        # TODO: add normalization
+        pred_classification, pred_regression = predictions
+        gt_classification, gt_regression = ground_truth
+        pred_regression *= gt_classification.unsqueeze(-1)
+        gt_regression *= gt_classification.unsqueeze(-1)  # may be redundant
         return self.regression_base_loss(pred_regression, gt_regression) + \
             self.classification_base_loss(pred_classification, gt_classification)
 
@@ -79,7 +82,7 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
 
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
               epoch: int, mode: str = 'train', writer: SummaryWriter = None,
-              optimizer: torch.optim.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
+              optimizer: Optimizer = None, device: Union[torch.device, str] = torch.device('cpu')) -> None:
     """
     Run one epoch for model. Can be used for both training and validation.
     :param model: pytorch model to be trained or validated
@@ -103,7 +106,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     for i, (frames, bboxes) in enumerate(tqdm(loader, desc="Batch", leave=False)):
         frames = frames.to(device)
         preds = model(frames)
-        gt_data = gt_former.form_gt(bboxes).to(device)
+        gt_data = gt_former.form_gt(bboxes)
         loss = criterion(preds, gt_data)
         if mode == 'train':
             optimizer.zero_grad()
@@ -164,11 +167,11 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
         frame_length // (2 ** model.n_pools)
-    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
+    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
 
     for epoch in trange(n_epochs, desc="Epoch"):
         run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train', writer=train_writer,
-                  optimizer=optimizer)
+                  optimizer=optimizer, device=device)
         scheduler.step()
         # run_epoch(model, val_loader, criterion, epoch, mode='val', writer=val_writer)
 

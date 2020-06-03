@@ -61,14 +61,16 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.grid_size = \
             tuple(((self.crop_max_bound - self.crop_min_bound) * self.voxels_per_meter)[[2, 0, 1]].astype(int))
 
-        # Initialize nuscenes dataset and determine it's size
+        # Initialize nuscenes dataset, skip samples without vehicles and determine  dataset's size
         self.nuscenes = nuscenes
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
-        self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
+        self.n_samples_total = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
+        self.samples_ix = [ix for ix in range(self.n_samples_total) if self._sample_has_vehicles(ix)]
+        self.n_samples = len(self.samples_ix)
 
         # TODO: Add train/validation split
 
-    def __getitem__(self, ix: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    def __getitem__(self, ix: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Get point cloud converted to voxel grid
         :param ix: index of element to get
@@ -78,6 +80,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         if ix >= len(self):
             raise IndexError(f"Index {ix} is out of bounds")
+        ix = self.samples_ix[ix]  # Only get samples from our subset of indexes with vehicles
+
         sample = self.nuscenes.sample[ix]
         filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
 
@@ -89,6 +93,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
         boxes = [self._annotation_to_bbox(ann, check_bounds=True)
                  for ann in annotations if ann.name.startswith("vehicle")]
         boxes = [b for b in boxes if b is not None]
+        boxes = torch.stack(boxes) if boxes else torch.empty(0, 0)
 
         return grid, boxes
 
@@ -152,3 +157,16 @@ class NuscenesBEVDataset(torchdata.Dataset):
         a_sin = np.sqrt(1 - a_cos ** 2) * np.sign(a_rotated[1])
 
         return torch.tensor([y, x, w, l, a_sin, a_cos])
+
+    def _sample_has_vehicles(self, ix: int) -> bool:
+        """
+        Check if sample has vehicles in it
+        :param ix: index of the sample
+        :return: whether sample has vehicles
+        """
+        sample = self.nuscenes.sample[ix]
+        filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
+        for ann in annotations:
+            if ann.name.startswith("vehicle") and point_in_bounds(ann.center, self.crop_min_bound, self.crop_max_bound):
+                return True
+        return False
