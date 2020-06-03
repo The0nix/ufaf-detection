@@ -126,7 +126,6 @@ class GroundTruthFormer:
                  n_bbox_params: int = 6, device: Union[torch.device, str] = torch.device('cpu')) -> None:
         self.device = device
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
-        self.batch_size = detector_output_size[0]
         _, self.detector_out_width, self.detector_out_length = detector_output_size[1:]
         self.n_pools = n_pools
         self.iou_threshold = iou_threshold
@@ -169,14 +168,13 @@ class GroundTruthFormer:
         [batch_size, detector_out_width, detector_out_length, n_predefined_boxes, n_bbox_params]
         and represents regression target
         """
-        gt_bboxes_coords = [utils.bbox_to_coordinates(gt_bboxes[n], rot=False).to(self.device)
-                            for n in range(self.batch_size)]
+        gt_bboxes_coords = [utils.bbox_to_coordinates(gt_bbox, rot=False).to(self.device) for gt_bbox in gt_bboxes]
         classification_target = []
         regression_target = []
         prior_boxes_params = self.prior_boxes_params.view(-1, self.n_bbox_params)
         prior_boxes_coords = self.prior_boxes_coords.view(-1, 4, 2)  # each box is 4 points of 2 coordinates)
-        for n in range(self.batch_size):
-            iou = utils.calc_iou(gt_bboxes_coords[n], prior_boxes_coords)  # tensor of size [n_gt_boxes, n_prior_boxes]
+        for gt_bbox, gt_bbox_coords in zip(gt_bboxes, gt_bboxes_coords):
+            iou = utils.calc_iou(gt_bbox_coords, prior_boxes_coords)  # tensor of size [n_gt_boxes, n_prior_boxes]
             gt_has_match = (iou >= self.iou_threshold).sum(dim=1).bool()
             prior_has_match = (iou >= self.iou_threshold).sum(dim=0).bool()
             gt_best_match = iou.argmax(dim=1)
@@ -192,13 +190,13 @@ class GroundTruthFormer:
 
             # Calculate regression target: y and x offset, width and length correction, sin and cos of angle
             cur_regression_target[:, 0] = \
-                (prior_boxes_params[:, 0] - gt_bboxes[n][prior_match, 0]) / gt_bboxes[n][prior_match, 2]
+                (prior_boxes_params[:, 0] - gt_bbox[prior_match, 0]) / gt_bbox[prior_match, 2]
             cur_regression_target[:, 1] = \
-                (prior_boxes_params[:, 1] - gt_bboxes[n][prior_match, 1]) / gt_bboxes[n][prior_match, 3]
-            cur_regression_target[:, 2] = torch.log(prior_boxes_params[:, 2] / gt_bboxes[n][prior_match, 2])
-            cur_regression_target[:, 3] = torch.log(prior_boxes_params[:, 3] / gt_bboxes[n][prior_match, 3])
-            cur_regression_target[:, 4] = gt_bboxes[n][prior_match, 4]
-            cur_regression_target[:, 5] = gt_bboxes[n][prior_match, 5]
+                (prior_boxes_params[:, 1] - gt_bbox[prior_match, 1]) / gt_bbox[prior_match, 3]
+            cur_regression_target[:, 2] = torch.log(prior_boxes_params[:, 2] / gt_bbox[prior_match, 2])
+            cur_regression_target[:, 3] = torch.log(prior_boxes_params[:, 3] / gt_bbox[prior_match, 3])
+            cur_regression_target[:, 4] = gt_bbox[prior_match, 4]
+            cur_regression_target[:, 5] = gt_bbox[prior_match, 5]
 
             cur_regression_target = \
                 cur_regression_target.view(self.detector_out_width, self.detector_out_length,
