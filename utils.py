@@ -32,7 +32,7 @@ def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = False) -> torch.Tensor
                                      for vertex in vertices_centered]
         vertices = [(vertex[0] + y, vertex[1] + x) for vertex in vertices_centered_rotated]
         vertices = torch.tensor(vertices)
-    vertices = torch.stack(vertices).permute(2, 0, 1)
+    vertices = torch.stack(vertices).permute(2, 0, 1)  # make n_boxes first
     return vertices
 
 
