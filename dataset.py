@@ -42,6 +42,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
     :param crop_min_bound: min bound of the box to crop point cloud to in by X, Y and Z in meters
     :param crop_max_bound: max bound of the box to crop point cloud to in by X, Y and Z in meters
     :param n_scenes: if not None represents the number of scenes downloaded
+    :param mode: `train` or `val', create different datasets for train and validation
     (if you downloaded only a part of the dataset)
 
     Example:
@@ -52,7 +53,7 @@ class NuscenesBEVDataset(torchdata.Dataset):
     def __init__(self, nuscenes: NuScenes, voxels_per_meter: int = 5,
                  crop_min_bound: Tuple[int, int, int] = (-72, -40, -2),
                  crop_max_bound: Tuple[int, int, int] = (72, 40, 3.5),
-                 n_scenes: int = None) -> None:
+                 n_scenes: int = None, mode: str = 'train') -> None:
         self.voxels_per_meter = voxels_per_meter
         self.voxel_size = 1 / voxels_per_meter
         # Change to YXZ, because lidar's "forward" is Y (see https://www.nuscenes.org/data-collection)
@@ -65,8 +66,8 @@ class NuscenesBEVDataset(torchdata.Dataset):
         self.nuscenes = nuscenes
         self.n_scenes = n_scenes or len(self.nuscenes.scene)
         self.n_samples = sum(self.nuscenes.scene[i]["nbr_samples"] for i in range(self.n_scenes))
-
-        # TODO: Add train/validation split
+        self.train_split = int(0.8 * self.n_samples)
+        self.mode = mode
 
     def __getitem__(self, ix: int) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
@@ -78,13 +79,16 @@ class NuscenesBEVDataset(torchdata.Dataset):
         """
         if ix >= len(self):
             raise IndexError(f"Index {ix} is out of bounds")
+
+        if self.mode == 'val':
+            ix += self.train_split
+
         sample = self.nuscenes.sample[ix]
         filepath, annotations, _ = self.nuscenes.get_sample_data(sample["data"]["LIDAR_TOP"])
 
         # Get lidar data
         grid = torch.from_numpy(self._get_point_cloud(filepath))
         grid.unsqueeze_(0)  # adds time dimension
-
         # Get GT boxes
         boxes = [self._annotation_to_bbox(ann, check_bounds=True)
                  for ann in annotations if ann.name.startswith("vehicle")]
@@ -93,7 +97,9 @@ class NuscenesBEVDataset(torchdata.Dataset):
         return grid, boxes
 
     def __len__(self) -> int:
-        return self.n_samples
+        if self.mode == 'val':
+            return self.n_samples - self.train_split
+        return self.train_split
 
     def _get_point_cloud(self, filepath: str) -> np.ndarray:
         """
