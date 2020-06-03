@@ -41,13 +41,17 @@ def calc_iou(box1: List[Tuple[int, int]], box2: List[Tuple[int, int]]) -> float:
     :return: intersection over union score
     """
 
-    x1 = max(box1[0][1], box2[0][1])  # left top angle of the intersection
-    y1 = max(box1[0][0], box2[0][0])  #
-    x2 = min(box1[2][1], box2[2][1])  # right bottom angle of the intersection
-    y2 = min(box1[2][0], box2[2][0])  #
+    left_top_x = max(box1[0][1], box2[0][1])  # left top angle of the intersection
+    left_top_y = max(box1[0][0], box2[0][0])  #
+    right_bottom_x = min(box1[2][1], box2[2][1])  # right bottom angle of the intersection
+    right_bottom_y = min(box1[2][0], box2[2][0])  #
 
-    box1_area = (box1[0][1] - box1[2][1]) * (box1[0][0] - box1[2][0])
-    box2_area = (box2[0][1] - box2[2][1]) * (box2[0][0] - box2[2][0])
-    intersection = (x2 - x1) * (y2 - y1) if (y2 > y1 and x2 > x1) else 0
+    box1_area = (box1[0][1] - box1[2][1]) * (box1[0][0] - box1[2][0])  # width multiplied by height
+    box2_area = (box2[0][1] - box2[2][1]) * (box2[0][0] - box2[2][0])  #
+    intersection = (
+        (right_bottom_x - left_top_x) * (right_bottom_y - left_top_y)
+        if (right_bottom_y > left_top_y and right_bottom_x > left_top_x)
+        else 0
+    )
     union = box1_area + box2_area - intersection
     return intersection / union
