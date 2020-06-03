@@ -182,10 +182,10 @@ class GroundTruthFormer:
         :param candidate_box: predicted box, torch.Tensor of 6 numbers: center coordinates, length, width, sin(a) and cos(a)
         :return: normalized gt_box, torch.Tensor of 6 numbers
         """
-        coords, sizes = 2, 4
+        coords_ix, sizes_ix = 2, 4
         candidate_box = torch.as_tensor(candidate_box).float()
-        gt_box[:coords] = torch.div(candidate_box[:coords] - gt_box[:coords], gt_box[coords:sizes])
-        gt_box[coords:sizes] = torch.log(torch.div(candidate_box[coords:sizes], gt_box[coords:sizes]))
+        gt_box[:coords_ix] = torch.div(candidate_box[:coords_ix] - gt_box[:coords_ix], gt_box[coords_ix:sizes_ix])
+        gt_box[coords_ix:sizes_ix] = torch.log(torch.div(candidate_box[coords_ix:sizes_ix], gt_box[coords_ix:sizes_ix]))
         return gt_box
 
     def _project_predefined_bbox_to_img(self, params: List[int]) -> np.ndarray:
