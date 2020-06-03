@@ -7,7 +7,6 @@ from typing import List, Tuple
 import numpy as np
 import torch
 from torch import nn
-from shapely.geometry import Polygon
 
 import utils
 
@@ -151,8 +150,8 @@ class GroundTruthFormer:
                             if (i, j, k) in used_boxes:
                                 continue
                             candidate_box_parametrized = self._project_predefined_bbox_to_img([i, j, *candidate_box])
-                            iou = self.calc_iou_from_polygons(self._get_polygon(gt_box.numpy()),
-                                                              self._get_polygon(candidate_box_parametrized, rot=False))
+                            iou = utils.calc_iou(utils.bbox_to_coordinates(gt_box.numpy(), rot=False),
+                                                 utils.bbox_to_coordinates(candidate_box_parametrized, rot=False))
                             if iou > self.iou_threshold:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
@@ -188,22 +187,6 @@ class GroundTruthFormer:
                            width * self.bbox_scaling,  # scale to real world cars size
                            length * self.bbox_scaling,
                            0, 1])                      # zero rotation
-
-    @staticmethod
-    def _get_polygon(parametrized_box: np.ndarray, rot: bool = True) -> Polygon:
-        """
-        Get Polygon object from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
-        cos(a). Center is considered to be a "right-bottom center" (matters when image dimensions are even).
-        :param parametrized_box: array of ground truth bounding box geometrical parameters (center_y, center_x,
-        width, length, sin(a), cos(a))
-        :param rot: bool, True if rotation needed, False otherwise
-        :return: Polygon object, initialized by vertices of the GT bbox polygon on original image scale
-        """
-        return Polygon(utils.bbox_to_coordinates(parametrized_box, rot))
-
-    @staticmethod
-    def calc_iou_from_polygons(gt_box: Polygon, candidate_box: Polygon) -> float:
-        return gt_box.intersection(candidate_box).area / gt_box.union(candidate_box).area
 
 
 # sanity checks: model forward pass and ground truth forming

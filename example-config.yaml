@@ -1,1 +1,4 @@
-image-depth: 27
+tb_path: "./tb"
+n_scenes: 85
+batch_size: 4
+n_loader_workers: 1

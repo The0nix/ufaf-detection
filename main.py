@@ -33,6 +33,7 @@ def load_yaml(filepath: str) -> dict:
         result = yaml.safe_load(stream)
     return result
 
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
