@@ -64,7 +64,7 @@ def calc_iou(box1: torch.Tensor, box2: torch.Tensor) -> torch.Tensor:
         * ((right_bottom_y > left_top_y) & (right_bottom_x > left_top_x))
     )
 
-    # Calculate areas as width * height and expand to matrix
+    # Calculate areas as width * length and expand to matrix
     box1_area = ((box1[:, 0, 1] - box1[:, 2, 1]) * (box1[:, 0, 0] - box1[:, 2, 0])).unsqueeze(1).expand_as(intersection)
     box2_area = ((box2[:, 0, 1] - box2[:, 2, 1]) * (box2[:, 0, 0] - box2[:, 2, 0])).unsqueeze(0).expand_as(intersection)
 
