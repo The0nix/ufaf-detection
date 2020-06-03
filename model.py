@@ -178,7 +178,7 @@ class GroundTruthFormer:
         prior_boxes_params = self.prior_boxes_params.view(-1, self.n_bbox_params)
         prior_boxes_coords = self.prior_boxes_coords.view(-1, 4, 2)  # each box is 4 points of 2 coordinates)
         for n in range(self.batch_size):
-            iou = utils.calc_iou(gt_bboxes_coords[n], prior_boxes_coords)  # matrix of size [n_gt_boxes, n_prior_boxes]
+            iou = utils.calc_iou(gt_bboxes_coords[n], prior_boxes_coords)  # tensor of size [n_gt_boxes, n_prior_boxes]
             gt_has_match = (iou >= self.iou_threshold).sum(dim=1).bool()
             prior_has_match = (iou >= self.iou_threshold).sum(dim=0).bool()
             gt_best_match = iou.argmax(dim=1)
