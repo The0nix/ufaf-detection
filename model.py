@@ -106,19 +106,22 @@ class GroundTruthFormer:
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
     :param iou_threshold: threshold above which box is considered match to ground truth
+    :param n_bbox_params: number of regression numbers for each bounding box
     """
     def __init__(self, gt_frame_size: Tuple[int, int], detector_output_size: Tuple[int, int, int, int],
-                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4, iou_threshold: int = 0.4) -> None:
+                 voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4, iou_threshold: int = 0.4,
+                 n_bbox_params: int = 6) -> None:
         self.gt_frame_width, self.gt_frame_length = gt_frame_size
         self.batch_size = detector_output_size[0]
         self.detector_out_depth, self.detector_out_width, self.detector_out_length = detector_output_size[1:]
         self.n_pools = n_pools
         self.iou_threshold = iou_threshold
+        self.n_bbox_params = n_bbox_params
         self.bbox_scaling = car_size * voxels_per_meter
         predefined_bboxes = [[1, 1], [1, 2], [2, 1], [1, 6], [6, 1], [2, 2]]
         self.predefined_bboxes = [[dim for dim in box] for box in predefined_bboxes]
 
-    def __call__(self, gt_bboxes: List[List[torch.Tensor]]):
+    def __call__(self, gt_bboxes: List[List[torch.Tensor]]) -> torch.Tensor:
         """
         :param gt_bboxes: list of lists of ground truth bounding boxes parameters, which are torch.Tensors of 6 numbers:
         center coordinates, length, width, sin(a) and cos(a)
@@ -152,7 +155,8 @@ class GroundTruthFormer:
                             if iou > self.iou_threshold:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
-                                gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
+                                gt_result[n, k * self.n_bbox_params:(k + 1) * self.n_bbox_params,
+                                          i, j] = gt_box  # add bbox coordinates
                                 gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
                             else:
                                 if iou > current_max_iou:
@@ -177,12 +181,12 @@ class GroundTruthFormer:
         :return: tensor of cell indices, width, length, sin(0) and cos(0) of the predefined bbox projection
         on the original image
         """
-        position, size = params[:2], params[2:]
-        return np.asarray([position[0] * 2 ** self.n_pools,  # find projection through pooling layers
-                           position[1] * 2 ** self.n_pools,
-                           size[0] * self.bbox_scaling,      # scale to real world cars size
-                           size[1] * self.bbox_scaling,
-                           0, 1])                            # zero rotation
+        y, x, width, length = params
+        return np.asarray([y * 2 ** self.n_pools,      # find projection through pooling layers
+                           x * 2 ** self.n_pools,
+                           width * self.bbox_scaling,  # scale to real world cars size
+                           length * self.bbox_scaling,
+                           0, 1])                      # zero rotation
 
 
 # sanity checks: model forward pass and ground truth forming
@@ -210,4 +214,4 @@ class GroundTruthFormer:
 #             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
 # for gt_box in gt_boxes:
 #     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer.get_polygon(gt_box.numpy()).area}')
+#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
