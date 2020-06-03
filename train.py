@@ -50,7 +50,7 @@ class DetectionLoss(nn.modules.loss._Loss):
         gt_regression *= mask  # may be redundant
         # TODO: add normalization
         return self.regression_base_loss(pred_regression, gt_regression) + \
-               self.classification_base_loss(pred_classification, gt_classification)
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
