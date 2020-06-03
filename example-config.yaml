@@ -1,4 +1,4 @@
 tb_path: "./tb"
 n_scenes: 85
-batch_size: 4
+batch_size: 12
 n_loader_workers: 1
