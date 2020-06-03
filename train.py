@@ -23,6 +23,7 @@ class DetectionLoss(nn.modules.loss._Loss):
     :param regression_base_loss: loss function to be used for regression targets
     :param classification_base_loss: loss function to be used for classification targets
     """
+
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1,
                  regression_base_loss: Optional[nn.modules.loss._Loss] = None,
@@ -33,7 +34,6 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.classification_values_per_unit = classification_values_per_unit
         self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
         self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
-        
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         """
@@ -51,7 +51,7 @@ class DetectionLoss(nn.modules.loss._Loss):
         gt_regression *= mask  # may be redundant
         # TODO: add normalization
         return self.regression_base_loss(pred_regression, gt_regression) + \
-            self.classification_base_loss(pred_classification, gt_classification)
+               self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
@@ -77,9 +77,10 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
     return grid, bboxes
 
 
-def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss, gt_former: GroundTruthFormer,
-              epoch: int, mode: str = 'train', writer: SummaryWriter = None,
-              optimizer: torch.optim.Optimizer = None, device: torch.device = torch.device('cuda')) -> None:
+def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
+              gt_former: GroundTruthFormer,
+              epoch: int, mode: str = 'train', writer: SummaryWriter = None, optimizer: torch.optim.Optimizer = None,
+              device: torch.device = torch.device('cuda')) -> Optional[float, float]:
     """
     Run one epoch for model. Can be used for both training and validation.
     :param model: pytorch model to be trained or validated
@@ -87,16 +88,18 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param criterion: callable class to calculate loss
     :param gt_former: callable class to form ground truth data to compute loss
     :param epoch: number of current epoch
-    :param mode: `train` or `eval', controls model parameters update need
+    :param mode: `train` or `val', controls model parameters update need
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
     :param device: device to be used for model related computations
+
+    :return: values for cumulative loss and score (only in 'val' mode)
     """
     if mode == 'train':
         model.train()
-    elif mode == 'eval':
+    elif mode == 'val':
         model.eval()
-        cumulative_loss = 0
+        cumulative_loss, cumulative_score = 0, 0
     else:
         raise ValueError(f'Unknown mode: {mode}')
 
@@ -105,24 +108,29 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
         preds = model(frames)
         gt_data = gt_former.form_gt(bboxes).to(device)
         loss = criterion(preds, gt_data)
+        score = pr_auc(gt_data, preds)  # TODO: provide here classification slices
         if mode == 'train':
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             if writer is not None:
                 writer.add_scalar('Loss', loss.item(), epoch * len(loader) + i)
-            # TODO: save model based on score
+                writer.add_scalar('Score', score, epoch * len(loader) + i)
         else:
             cumulative_loss += loss.item()
+            cumulative_score += score
     if mode != 'train':
         writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
+        writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
+        return cumulative_loss, cumulative_score
 
 
-def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str = 'v1.0-trainval',
+def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 85, version: str = 'v1.0-trainval',
           n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100) -> None:
     """
     Train model, log training statistics if tb_path is specified.
     :param data_path: relative path to data folder
+    :param model_path: relative path to save model weights
     :param tb_path: name of the folder for tensorboard data to be store in
     :param n_scenes: number of scenes in dataset
     :param version: version of the dataset
@@ -141,7 +149,7 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     # set up tensorboard writer
     if tb_path is not None:
         date = datetime.datetime.now().strftime('%b-%d-%Y-%H:%M:%S')
-        train_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/train')
+        train_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/train/')  # keeping only one and creating folders inside
         val_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/val')
         print(f'Logging tensorboard data to directory: {tb_path}/{date}\n')
     else:
@@ -153,9 +161,12 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                               collate_fn=frames_bboxes_collate_fn, pin_memory=True)
+    # TODO: create actual validation data-loader
+    val_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
+                            collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     print('Loaders are ready.\n',
-          f'Number of batches in train loader: {len(train_loader)}\n')
-          # f'Number of bathces in validation loader: {len(val_loader)}')
+          f'Number of batches in train loader: {len(train_loader)}\n'
+          f'Number of bathces in validation loader: {len(val_loader)}')
 
     frame_depth, frame_width, frame_length = dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
@@ -163,15 +174,60 @@ def train(data_path: str, tb_path: str = None, n_scenes: int = 85, version: str 
     optimizer = Adam(model.parameters(), lr=1e-4)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
-        frame_length // (2 ** model.n_pools)
+                         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
+
+    best_val_loss, best_val_score = None, None
 
     for epoch in trange(n_epochs, desc="Epoch"):
         run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train', writer=train_writer,
                   optimizer=optimizer)
         scheduler.step()
-        # run_epoch(model, val_loader, criterion, epoch, mode='val', writer=val_writer)
+        val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch, mode='val', writer=val_writer)
+        # saving model weights in case validation loss AND score are better
+        if not best_val_loss or (val_loss < best_val_loss and val_score > best_val_score):
+            best_val_loss, best_val_score = val_loss, val_score
+            torch.save(model.state_dict(), model_path)
+            print('Model checkpoint is saved.\n',
+                  f'Cumulative loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, model_path: str, **kwargs):  # TODO: remove **kwargs and add proper keyword arguments
-    raise NotImplementedError
+def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1.0-trainval',
+         n_loader_workers: int = 8, batch_size: int = 32):
+    """
+    Evaluate model.
+    :param data_path: relative path to data folder
+    :param model_path: relative path to save model weights
+    :param n_scenes: number of scenes in dataset
+    :param version: version of the dataset
+    :param n_loader_workers: number of CPU workers for data loader processing
+    :param batch_size: batch size
+    """
+    # set up computing device for pytorch
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print('Using device: GPU\n')
+    else:
+        device = torch.device('cpu')
+        print('Using device: CPU\n')
+
+    # set up dataset and model
+    nuscenes = create_nuscenes(data_path)
+    dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes)
+    # TODO: create actual evaluation data-loader
+    eval_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
+                             collate_fn=frames_bboxes_collate_fn, pin_memory=True)
+
+    print('Eval loader is ready.\n',
+          f'Number of batches in eval loader: {len(eval_loader)}\n')
+
+    frame_depth, frame_width, frame_length = dataset.grid_size
+    model = Detector(img_depth=frame_depth).to(device)
+    # load model from checkpoint
+    model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
+    criterion = DetectionLoss()
+    detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
+                         frame_length // (2 ** model.n_pools)
+    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
+    eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val', writer=None)
+    return eval_loss, eval_score
