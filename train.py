@@ -105,6 +105,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
 
     for i, (frames, bboxes) in enumerate(tqdm(loader, desc="Batch", leave=False)):
         frames = frames.to(device)
+        bboxes = [bbox.to(device) for bbox in bboxes]
         preds = model(frames)
         gt_data = gt_former.form_gt(bboxes)
         loss = criterion(preds, gt_data)
