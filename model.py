@@ -156,7 +156,7 @@ class GroundTruthFormer:
                                 used_boxes.add((i, j, k))
                                 gt_with_candidate_matches[gt_box].append((i, j, k))
                                 gt_result[n, k * self.n_bbox_params:(k + 1) * self.n_bbox_params,
-                                          i, j] = gt_box  # add bbox coordinates
+                                          i, j] = self._normalize_gt(gt_box, candidate_box_parametrized)  #add bbox coordinates
                                 gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
                             else:
                                 if iou > current_max_iou:
@@ -167,12 +167,26 @@ class GroundTruthFormer:
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
                     # next line handles current_max_box being None while testing, remove it while applying to real data
-                    # current_max_box = (1, 1, 1)
+                    #current_max_box = (1, 1, 1)
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
-                    gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
+                    candidate_box_parametrized = self._project_predefined_bbox_to_img([i, j, *(self.predefined_bboxes[k])])
+                    gt_result[n, k * 6:(k + 1) * 6, i, j] = self._normalize_gt(gt_box, candidate_box_parametrized)  # add bbox coordinates
                     gt_result[n, len(self.predefined_bboxes) * 6 + k, i, j] = 1  # assign true class label
         return gt_result
+
+    def _normalize_gt(self, gt_box, candidate_box) -> torch.Tensor:
+        """
+        Get normalization of ground truth
+        :param gt_box: ground truth box, torch.Tensor of 6 numbers: center coordinates, length, width, sin(a) and cos(a)
+        :param candidate_box: predicted box, torch.Tensor of 6 numbers: center coordinates, length, width, sin(a) and cos(a)
+        :return: normalized gt_box, torch.Tensor of 6 numbers
+        """
+        coords, sizes = 2, 4
+        candidate_box = torch.as_tensor(candidate_box).float()
+        gt_box[:coords] = torch.div(candidate_box[:coords] - gt_box[:coords], gt_box[coords:sizes])
+        gt_box[coords:sizes] = torch.log(torch.div(candidate_box[coords:sizes], gt_box[coords:sizes]))
+        return gt_box
 
     def _project_predefined_bbox_to_img(self, params: List[int]) -> np.ndarray:
         """
@@ -190,28 +204,30 @@ class GroundTruthFormer:
 
 
 # sanity checks: model forward pass and ground truth forming
-# batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
-# frames = torch.randn((batch_size, time_steps, depth, width, length)).cuda()
-# gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
+#batch_size, time_steps, depth, width, length = 8, 1, 20, 128, 128
+#frames = torch.randn((batch_size, time_steps, depth, width, length)) #.cuda()
+#gt_bboxes = [[torch.randn(6) for j in range(20)] for i in range(batch_size)]
+#print('gt_bboxes', gt_bboxes[0][0].size(), len(gt_bboxes), len(gt_bboxes[0]))
 #
-# net = Detector(depth).cuda()
-# begin = time()
-# model_out = net(frames)
-# end = time()
-# print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
+#net = Detector(depth) #.cuda()
+#begin = time()
+#model_out = net(frames)
+#end = time()
+#print(model_out.shape, f'Detector forward pass time taken: {(end - begin):.4f} seconds', sep='\n')
 #
-# cProfile.run("GroundTruthFormer((128, 128), model_out.shape)(gt_bboxes)")
+#cProfile.run("GroundTruthFormer((128, 128), model_out.shape)(gt_bboxes)")
 #
-# gt_former = GroundTruthFormer((128, 128), model_out.shape)
-# begin = time()
-# gt = gt_former(gt_bboxes)
-# end = time()
-# print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
+#print('model_out', model_out.size())
+#gt_former = GroundTruthFormer((128, 128), model_out.shape)
+#begin = time()
+#gt = gt_former(gt_bboxes)
+#end = time()
+#print(gt.shape, f'Ground truth former time taken: {(end - begin):.2f} seconds', sep='\n', end='\n\n')
 #
 # # sanity check: rectangle area must not change after rotation
-# gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
+#gt_boxes = [torch.tensor([1, 2, 5, 5, 1, 0]),
 #             torch.tensor([1, 2, 5, 5, 0, 1]),
 #             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
-# for gt_box in gt_boxes:
-#     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
+#for gt_box in gt_boxes:
+#    print(f'True area: {gt_box[2] * gt_box[3]}', end='')
+#    print(f', area after rotation: {utils.bbox_to_coordinates(gt_box.numpy())}')
