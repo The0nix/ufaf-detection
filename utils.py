@@ -65,11 +65,11 @@ def calc_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     )
 
     # Calculate areas as width * length and expand to matrix
-    box1_area = ((boxes1[:, 0, 1] - boxes1[:, 2, 1]) * (boxes1[:, 0, 0] - boxes1[:, 2, 0]))
-    box1_area = box1_area.unsqueeze(1).expand_as(intersection)
-    box2_area = ((boxes2[:, 0, 1] - boxes2[:, 2, 1]) * (boxes2[:, 0, 0] - boxes2[:, 2, 0]))
-    box2_area = box2_area.unsqueeze(0).expand_as(intersection)
+    boxes1_area = ((boxes1[:, 0, 1] - boxes1[:, 2, 1]) * (boxes1[:, 0, 0] - boxes1[:, 2, 0]))
+    boxes1_area = boxes1_area.unsqueeze(1).expand_as(intersection)
+    boxes2_area = ((boxes2[:, 0, 1] - boxes2[:, 2, 1]) * (boxes2[:, 0, 0] - boxes2[:, 2, 0]))
+    boxes2_area = boxes2_area.unsqueeze(0).expand_as(intersection)
 
     # Calculate union and return iou
-    union = box1_area + box2_area - intersection
+    union = boxes1_area + boxes2_area - intersection
     return intersection / union
