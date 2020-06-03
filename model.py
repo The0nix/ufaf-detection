@@ -167,7 +167,7 @@ class GroundTruthFormer:
                 if gt_box not in gt_with_candidate_matches:
                     # TODO: check that current_max_box is not None with real data
                     # next line handles current_max_box being None while testing, remove it while applying to real data
-                    # current_max_box = (1, 1, 1)
+                    current_max_box = (1, 1, 1)
                     gt_with_candidate_matches[gt_box] = list(current_max_box)
                     i, j, k = current_max_box
                     gt_result[n, k * 6:(k + 1) * 6, i, j] = gt_box  # add bbox coordinates
@@ -214,4 +214,4 @@ class GroundTruthFormer:
 #             torch.tensor([1, 2, 5, 5, sqrt(2) / 2, sqrt(2) / 2])]
 # for gt_box in gt_boxes:
 #     print(f'True area: {gt_box[2] * gt_box[3]}', end='')
-#     print(f', area after rotation: {GroundTruthFormer._get_polygon(gt_box.numpy()).area}')
+#     print(f', area after rotation: {utils.bbox_to_coordinates(gt_box.numpy())}')

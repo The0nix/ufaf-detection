@@ -22,18 +22,19 @@ class DetectionLoss(nn.modules.loss._Loss):
     :param classification_values_per_unit: number of classes for classification problem
     :param regression_base_loss: loss function to be used for regression targets
     :param classification_base_loss: loss function to be used for classification targets
+    :param negative_positive_ratio: ration of negative samples to positive samples for hard negative mining
     """
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
-                 classification_values_per_unit: int = 1,
+                 classification_values_per_unit: int = 1, negative_positive_ratio: int = 3,
                  regression_base_loss: Optional[nn.modules.loss._Loss] = None,
                  classification_base_loss: Optional[nn.modules.loss._Loss] = None) -> None:
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
+        self.negative_positive_ratio = negative_positive_ratio
         self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
         self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
-        
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         """
@@ -46,10 +47,26 @@ class DetectionLoss(nn.modules.loss._Loss):
         gt_classification = ground_truth[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
         pred_regression = predictions[:, :self.prediction_units_per_cell * self.regression_values_per_unit, :, :]
         pred_classification = predictions[:, self.prediction_units_per_cell * self.regression_values_per_unit:, :, :]
-        mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
-        pred_regression *= mask
-        gt_regression *= mask  # may be redundant
-        # TODO: add normalization
+        positive_reg_mask = torch.repeat_interleave(gt_classification, self.regression_values_per_unit, dim=1)
+        pred_regression *= positive_reg_mask
+        gt_regression *= positive_reg_mask  # may be redundant
+
+        # perform hard negative mining
+        n_positive = gt_classification.sum()
+        n_values_to_eliminate = int((torch.numel(gt_classification) - (self.negative_positive_ratio + 1) * n_positive))
+
+        if n_values_to_eliminate < 0:
+            # this happens when classes on the provided frames are already well balanced
+            return self.regression_base_loss(pred_regression, gt_regression) + \
+                   self.classification_base_loss(pred_classification, gt_classification)
+
+        negative_probs = pred_classification * (1 - gt_classification)
+        negative_probs_flat = negative_probs.view(-1, 1)
+        negative_probs_flat[torch.topk(negative_probs_flat, k=n_values_to_eliminate,
+                                       largest=False, dim=0).indices] = 0  # filter low negative probabilities
+        negative_probs = negative_probs_flat.view(negative_probs.size())
+        pred_classification *= gt_classification  # leave only positive predictions
+        pred_classification += negative_probs     # add mined negative predictions
         return self.regression_base_loss(pred_regression, gt_regression) + \
             self.classification_base_loss(pred_classification, gt_classification)
 
