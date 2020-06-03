@@ -1,3 +1,4 @@
+import os
 import datetime
 from typing import Optional, Union, List, Tuple
 
@@ -147,7 +148,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
         return cumulative_loss, cumulative_score
 
 
-def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 85, version: str = 'v1.0-trainval',
+def train(data_path: str, model_path: str, tb_path: str = None,
+          n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
           n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100) -> None:
     """
     Train model, log training statistics if tb_path is specified.
@@ -160,6 +162,9 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
     :param batch_size: batch size
     :param n_epochs: total number of epochs to train the model
     """
+    # create path for model save
+    os.makedirs(model_path, exist_ok=True)
+
     # set up computing device for pytorch
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -199,15 +204,16 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
 
-    best_val_loss, best_val_score = None, None
-
+    best_val_loss = float('inf')
+    best_val_score = float('-inf')
     for epoch in trange(n_epochs, desc="Epoch"):
-        run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train', writer=train_writer,
-                  optimizer=optimizer, device=device)
+        run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train',
+                  writer=train_writer, optimizer=optimizer, device=device)
         scheduler.step()
-        val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch, mode='val', writer=val_writer)
+        val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch,
+                                        mode='val', writer=val_writer, device=device)
         # saving model weights in case validation loss AND score are better
-        if best_val_loss is not None or (val_loss < best_val_loss and val_score > best_val_score):
+        if val_loss < best_val_loss and val_score > best_val_score:
             best_val_loss, best_val_score = val_loss, val_score
             torch.save(model.state_dict(), f'{model_path}/{date}.pth')
             print('Model checkpoint is saved.\n',
