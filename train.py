@@ -22,7 +22,7 @@ class DetectionLoss(nn.modules.loss._Loss):
     :param classification_values_per_unit: number of classes for classification problem
     :param regression_base_loss: loss function to be used for regression targets
     :param classification_base_loss: loss function to be used for classification targets
-    :param negative_positive_ratio: ration of negative samples to positive samples for hard negative mining
+    :param negative_positive_ratio: ratio of negative samples to positive samples for hard negative mining
     """
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1, negative_positive_ratio: int = 3,
