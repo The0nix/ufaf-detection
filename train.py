@@ -157,11 +157,11 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
 
     # set up dataset and model
     nuscenes = create_nuscenes(data_path)
-    dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
+    train_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='train')
+    val_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='val')
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                               collate_fn=frames_bboxes_collate_fn, pin_memory=True)
-    # TODO: create actual validation data-loader
-    val_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                             collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     print('Loaders are ready.\n',
           f'Number of batches in train loader: {len(train_loader)}\n'
@@ -186,7 +186,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
         # saving model weights in case validation loss AND score are better
         if best_val_loss is not None or (val_loss < best_val_loss and val_score > best_val_score):
             best_val_loss, best_val_score = val_loss, val_score
-            torch.save(model.state_dict(), model_path)
+            torch.save(model.state_dict(), f'{model_path}/{date}.pth')
             print('Model checkpoint is saved.\n',
                   f'Cumulative loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
@@ -212,9 +212,8 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1
 
     # set up dataset and model
     nuscenes = create_nuscenes(data_path)
-    dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes)
-    # TODO: create actual evaluation data-loader
-    eval_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
+    eval_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='val')
+    eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
 
     print('Eval loader is ready.\n',
