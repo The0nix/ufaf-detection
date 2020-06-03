@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Tuple
+from typing import Optional, List, Tuple
 
 from sklearn.metrics import auc, precision_recall_curve
 import torch
@@ -15,18 +15,25 @@ from model import Detector, GroundTruthFormer
 
 
 class DetectionLoss(nn.modules.loss._Loss):
+    """
+    Combination of losses for both regression and classification targets
+    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
+    :param regression_values_per_unit: number of regression values per bounding box
+    :param classification_values_per_unit: number of classes for classification problem
+    :param regression_base_loss: loss function to be used for regression targets
+    :param classification_base_loss: loss function to be used for classification targets
+    """
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
-                 classification_values_per_unit: int = 1) -> None:
-        """
-        Combination of losses for both regression and classification targets
-        :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
-        :param regression_values_per_unit: number of regression values per bounding box
-        :param classification_values_per_unit: number of classes for classification problem
-        """
+                 classification_values_per_unit: int = 1,
+                 regression_base_loss: Optional[nn.modules.loss._Loss] = None,
+                 classification_base_loss: Optional[nn.modules.loss._Loss] = None) -> None:
         super().__init__()
         self.prediction_units_per_cell = prediction_units_per_cell
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
+        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
+        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
+        
 
     def __call__(self, predictions: torch.Tensor, ground_truth: torch.Tensor) -> torch.Tensor:
         """
@@ -43,8 +50,8 @@ class DetectionLoss(nn.modules.loss._Loss):
         pred_regression *= mask
         gt_regression *= mask  # may be redundant
         # TODO: add normalization
-        return nn.SmoothL1Loss()(pred_regression, gt_regression) + \
-            nn.BCEWithLogitsLoss()(pred_classification, gt_classification)
+        return self.regression_base_loss(pred_regression, gt_regression) + \
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
