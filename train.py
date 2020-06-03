@@ -80,11 +80,11 @@ def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
     :param preds: 4D torch.Tensor of predicted class probabilities
     :return: float, Precision-Recall AUC
     """
-    precision, recall, _ = skmetrics.precision_recall_curve(
+    score = skmetrics.average_precision_score(
         gt_classes.detach().flatten().cpu().numpy(),
         preds.detach().flatten().cpu().numpy(),
     )
-    return skmetrics.auc(precision, recall)
+    return score
 
 
 def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]]) \
