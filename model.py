@@ -18,7 +18,7 @@ class EarlyFusion(nn.Module):
     :param n_base_channels: int, number of channels in the first convolution layer of VGG16
     :param n_time_steps: int, number of frames to be processed
     """
-    def __init__(self, img_depth, n_base_channels=32, n_time_steps=5):
+    def __init__(self, img_depth, n_base_channels=32, n_time_steps=5) -> None:
         super().__init__()
         self.n_base_channels = n_base_channels
         self.out_channels = n_base_channels * 8
@@ -70,10 +70,7 @@ class Detector(nn.Module):
     :param img_depth: int, discretized height of the image from BEV
     :param n_time_steps: int, number of frames to be processed
     :param n_predefined_boxes: int, number of bounding boxed corresponding to each cell of the feature map
-
-    First `6 * n_predefined_boxes` depth levels of final_conv output correspond to BB location parameters
-    on the original img, last `n_predefined_boxes` depth levels correspond to classification probabilities of
-    BB containing a vehicle
+    :param n_bbox_params: int, number of parameters in bbox. Default is 6: [y, x, width, length, sin(a), cos(a)]
     """
     def __init__(self, img_depth: int, n_time_steps: int = 1,
                  n_predefined_boxes: int = 6, n_bbox_params: int = 6) -> None:
@@ -121,7 +118,8 @@ class GroundTruthFormer:
     :param car_size: size of the car in meters
     :param n_pools: number of pooling layers in the feature extractor
     :param iou_threshold: threshold above which box is considered match to ground truth
-    :param n_bbox_params: number of regression numbers for each bounding box
+    :param n_bbox_params: number of parameters in bbox. Default is 6: [y, x, width, length, sin(a), cos(a)]
+    :param device: torch device for initialization of tensors
     """
     def __init__(self, gt_frame_size: Tuple[int, int], detector_output_size: Tuple[int, int, int, int],
                  voxels_per_meter: int = 5, car_size: int = 5, n_pools: int = 4, iou_threshold: int = 0.4,
@@ -192,8 +190,11 @@ class GroundTruthFormer:
             cur_regression_target = torch.zeros(self.detector_out_width * self.detector_out_length *
                                                 len(self.predefined_bboxes), self.n_bbox_params, device=self.device)
 
-            cur_regression_target[:, 0] = (prior_boxes_params[:, 0] - gt_bboxes[n][prior_match, 0]) / gt_bboxes[n][prior_match, 2]
-            cur_regression_target[:, 1] = (prior_boxes_params[:, 1] - gt_bboxes[n][prior_match, 1]) / gt_bboxes[n][prior_match, 3]
+            # Calculate regression target: y and x offset, width and length correction, sin and cos of angle
+            cur_regression_target[:, 0] = \
+                (prior_boxes_params[:, 0] - gt_bboxes[n][prior_match, 0]) / gt_bboxes[n][prior_match, 2]
+            cur_regression_target[:, 1] = \
+                (prior_boxes_params[:, 1] - gt_bboxes[n][prior_match, 1]) / gt_bboxes[n][prior_match, 3]
             cur_regression_target[:, 2] = torch.log(prior_boxes_params[:, 2] / gt_bboxes[n][prior_match, 2])
             cur_regression_target[:, 3] = torch.log(prior_boxes_params[:, 3] / gt_bboxes[n][prior_match, 3])
             cur_regression_target[:, 4] = gt_bboxes[n][prior_match, 4]

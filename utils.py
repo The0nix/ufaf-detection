@@ -36,27 +36,27 @@ def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = False) -> torch.Tensor
     return vertices
 
 
-def calc_iou(box1: torch.Tensor, box2: torch.Tensor) -> torch.Tensor:
+def calc_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     """
     Calculate IoU of two boxes presented by their corners' coordinates
-    :param box1: torch.Tensor of size (n_boxes_1, 4, 2) of boxes' coordinates:
+    :param boxes1: torch.Tensor of size (n_boxes_1, 4, 2) of boxes' coordinates:
     [left_top, right_top, right_bottom, left_bottom]
-    :param box2: torch.Tensor of size (n_boxes_2, 4, 2) of boxes' coordinates:
+    :param boxes2: torch.Tensor of size (n_boxes_2, 4, 2) of boxes' coordinates:
     [left_top, right_top, right_bottom, left_bottom]
     :return: torch.Tensor of size (n_boxes_1, n_boxes_2)  of intersection over union scores between each pair
     """
-    size_1 = box1.shape[0]
-    size_2 = box2.shape[0]
+    size_1 = boxes1.shape[0]
+    size_2 = boxes2.shape[0]
 
     # Calculate intersection corners for each pair
-    left_top_x = torch.max(box1[:, 0, 1].unsqueeze(1).expand(size_1, size_2),  # left top angle of the intersection
-                           box2[:, 0, 1].unsqueeze(0).expand(size_1, size_2))  #
-    left_top_y = torch.max(box1[:, 0, 0].unsqueeze(1).expand(size_1, size_2),  #
-                           box2[:, 0, 0].unsqueeze(0).expand(size_1, size_2))  #
-    right_bottom_x = torch.min(box1[:, 2, 1].unsqueeze(1).expand(size_1, size_2),  # right bottom angle of the
-                               box2[:, 2, 1].unsqueeze(0).expand(size_1, size_2))  # intersection
-    right_bottom_y = torch.min(box1[:, 2, 0].unsqueeze(1).expand(size_1, size_2),  #
-                               box2[:, 2, 0].unsqueeze(0).expand(size_1, size_2))  #
+    left_top_x = torch.max(boxes1[:, 0, 1].unsqueeze(1).expand(size_1, size_2),  # left top angle of the intersection
+                           boxes2[:, 0, 1].unsqueeze(0).expand(size_1, size_2))  #
+    left_top_y = torch.max(boxes1[:, 0, 0].unsqueeze(1).expand(size_1, size_2),  #
+                           boxes2[:, 0, 0].unsqueeze(0).expand(size_1, size_2))  #
+    right_bottom_x = torch.min(boxes1[:, 2, 1].unsqueeze(1).expand(size_1, size_2),  # right bottom angle of the
+                               boxes2[:, 2, 1].unsqueeze(0).expand(size_1, size_2))  # intersection
+    right_bottom_y = torch.min(boxes1[:, 2, 0].unsqueeze(1).expand(size_1, size_2),  #
+                               boxes2[:, 2, 0].unsqueeze(0).expand(size_1, size_2))  #
 
     # Calculate intersection from corners as width * height
     intersection = (
@@ -65,8 +65,10 @@ def calc_iou(box1: torch.Tensor, box2: torch.Tensor) -> torch.Tensor:
     )
 
     # Calculate areas as width * length and expand to matrix
-    box1_area = ((box1[:, 0, 1] - box1[:, 2, 1]) * (box1[:, 0, 0] - box1[:, 2, 0])).unsqueeze(1).expand_as(intersection)
-    box2_area = ((box2[:, 0, 1] - box2[:, 2, 1]) * (box2[:, 0, 0] - box2[:, 2, 0])).unsqueeze(0).expand_as(intersection)
+    box1_area = ((boxes1[:, 0, 1] - boxes1[:, 2, 1]) * (boxes1[:, 0, 0] - boxes1[:, 2, 0]))
+    box1_area = box1_area.unsqueeze(1).expand_as(intersection)
+    box2_area = ((boxes2[:, 0, 1] - boxes2[:, 2, 1]) * (boxes2[:, 0, 0] - boxes2[:, 2, 0]))
+    box2_area = box2_area.unsqueeze(0).expand_as(intersection)
 
     # Calculate union and return iou
     union = box1_area + box2_area - intersection
