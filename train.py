@@ -179,7 +179,7 @@ def train(data_path: str, model_path: str, tb_path: str = None, n_scenes: int = 
         print(f'No tensorboard logging will be performed\n')
 
     # set up dataset and model
-    nuscenes = create_nuscenes(data_path)
+    nuscenes = create_nuscenes(data_path, version)
     train_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='train')
     val_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='val')
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
