@@ -23,7 +23,6 @@ class DetectionLoss(nn.modules.loss._Loss):
     :param regression_base_loss: loss function to be used for regression targets
     :param classification_base_loss: loss function to be used for classification targets
     """
-
     def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
                  classification_values_per_unit: int = 1,
                  regression_base_loss: Optional[nn.modules.loss._Loss] = None,
