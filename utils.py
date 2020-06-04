@@ -3,7 +3,7 @@ from typing import List, Tuple
 import torch
 
 
-def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = False) -> torch.Tensor:
+def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = True) -> torch.Tensor:
     """
     Get vertices from bounding box parametrized with it's center_y, center_x, width, length, sin(a) and
     cos(a).
@@ -24,14 +24,12 @@ def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = False) -> torch.Tensor
     left_bottom = torch.stack([y + width / 2, x - length / 2])
     vertices = [left_top, right_top, right_bottom, left_bottom]
     if rot:
-        raise NotImplementedError("Rotations are not yet supported")
         sin, cos = bboxes[:, 4:].t()
-        rotation = torch.tensor([[-sin, cos], [cos, sin]])
-        vertices_centered = [torch.tensor([vertex[0] - y, vertex[1] - x]) for vertex in vertices]
-        vertices_centered_rotated = [tuple(rotation @ vertex.reshape(-1, 1))
+        rotation = torch.stack([torch.stack([-sin, cos]), torch.stack([cos, sin])]).permute(2, 0, 1)
+        vertices_centered = [torch.stack([vertex[0] - y, vertex[1] - x]) for vertex in vertices]
+        vertices_centered_rotated = [(rotation @ vertex.t().unsqueeze(-1)).squeeze(-1).t()
                                      for vertex in vertices_centered]
-        vertices = [(vertex[0] + y, vertex[1] + x) for vertex in vertices_centered_rotated]
-        vertices = torch.tensor(vertices)
+        vertices = [torch.stack([vertex[0] + y, vertex[1] + x]) for vertex in vertices_centered_rotated]
     vertices = torch.stack(vertices).permute(2, 0, 1)  # make n_boxes first
     return vertices
 
