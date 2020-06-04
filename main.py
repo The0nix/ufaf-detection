@@ -12,13 +12,13 @@ subparsers = parser.add_subparsers(title="commands", help="", required=True, des
 # Training parser
 parser_train = subparsers.add_parser("train", description="Trains the model with provided "
                                                           "parameters and outputs weights")
-parser_train.add_argument("-o", "--output", type=str, required=True, help="path to save model to")
+parser_train.add_argument("-o", "--output", type=str, required=True, help="directory to save model to")
 parser_train.add_argument("-c", "--config", type=str, help="config with training parameters")
 parser_train.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
 # Evaluation parser
 parser_eval = subparsers.add_parser("eval", description="Evaluates provided model on validation set")
-parser_eval.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
+parser_eval.add_argument("-m", "--model", type=str, required=True, help="directory to saved model")
 parser_eval.add_argument("-c", "--config", type=str,  help="config with training parameters")
 parser_eval.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
