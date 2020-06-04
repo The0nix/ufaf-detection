@@ -35,8 +35,8 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
         self.negative_positive_ratio = negative_positive_ratio
-        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
-        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
+        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss(reduction='none')
+        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss(reduction='none')
 
     # noinspection PyUnresolvedReferences
     def __call__(self, predictions: Tuple[torch.Tensor, torch.Tensor],
@@ -62,17 +62,23 @@ class DetectionLoss(nn.modules.loss._Loss):
         n_positive = gt_classification.sum()
         n_values_to_eliminate = int((torch.numel(gt_classification) - (self.negative_positive_ratio + 1) * n_positive))
 
+        regression_loss = self.regression_base_loss(pred_regression, gt_regression)
+        classification_loss = self.classification_base_loss(pred_classification, gt_classification)
+
         # n_values_to_eliminate can be less than zero when classes on the provided frames are already well balanced:
         if n_values_to_eliminate > 0:
             negative_probs = pred_classification * (1 - gt_classification)
             negative_probs = negative_probs.flatten()
-            negative_probs[torch.topk(negative_probs, k=n_values_to_eliminate,
-                                      largest=False).indices] = -1e9  # filter low negative probabilities
-            negative_probs = negative_probs.view_as(pred_classification)
-            pred_classification *= gt_classification  # leave only positive predictions
-            pred_classification += negative_probs     # add mined negative predictions
-        return self.regression_base_loss(pred_regression, gt_regression) + \
-            self.classification_base_loss(pred_classification, gt_classification)
+            negative_probs_ix = torch.topk(negative_probs, k=n_values_to_eliminate, largest=False).indices  # filter low negative probabilities
+
+            mask = torch.ones_like(pred_classification, device=pred_classification.device).flatten()
+            mask[negative_probs_ix] = 0
+            mask = mask.view_as(pred_classification)
+            mask = (mask + gt_classification).clamp(max=1)
+
+            classification_loss *= mask
+            regression_loss *= mask.unsqueeze(-1)
+        return regression_loss.mean() + classification_loss.mean()
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
