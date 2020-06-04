@@ -38,6 +38,7 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
         self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
 
+    # noinspection PyUnresolvedReferences
     def __call__(self, predictions: Tuple[torch.Tensor, torch.Tensor],
                  ground_truth: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
         """
@@ -64,10 +65,10 @@ class DetectionLoss(nn.modules.loss._Loss):
         # n_values_to_eliminate can be less than zero when classes on the provided frames are already well balanced:
         if n_values_to_eliminate > 0:
             negative_probs = pred_classification * (1 - gt_classification)
-            negative_probs_flat = negative_probs.flatten()
-            negative_probs_flat[torch.topk(negative_probs_flat, k=n_values_to_eliminate,
-                                           largest=False).indices] = 0  # filter low negative probabilities
-            negative_probs = negative_probs_flat.view_as(negative_probs)
+            negative_probs = negative_probs.flatten()
+            negative_probs[torch.topk(negative_probs, k=n_values_to_eliminate,
+                                      largest=False).indices] = -1e9  # filter low negative probabilities
+            negative_probs = negative_probs.view_as(pred_classification)
             pred_classification *= gt_classification  # leave only positive predictions
             pred_classification += negative_probs     # add mined negative predictions
         return self.regression_base_loss(pred_regression, gt_regression) + \
