@@ -233,12 +233,12 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, n_scenes: int = 85,
-         nuscenes_version: str = 'v1.0-trainval', n_loader_workers: int = 8, batch_size: int = 32) -> None:
+def eval(data_path: str, input_model_path: Optional[str] = None, n_scenes: int = 85,
+         nuscenes_version: str = 'v1.0-trainval', n_loader_workers: int = 8, batch_size: int = 32) \
+        -> Tuple[float, float]:
     """
     Evaluate model.
     :param data_path: relative path to data folder
-    :param output_model_dir: path to directory to save model weights to
     :param input_model_path: path to model weights. If None, create new model
     :param n_scenes: number of scenes in dataset
     :param nuscenes_version: version of the dataset
@@ -263,12 +263,9 @@ def eval(data_path: str, output_model_dir: str, input_model_path: Optional[str] 
           f'Number of batches in eval loader: {len(eval_loader)}\n')
 
     frame_depth, frame_width, frame_length = eval_dataset.grid_size
-    model = Detector(img_depth=frame_depth)
-    if input_model_path is not None:
-        model.load_state_dict(torch.load(input_model_path, map_location="cpu"))
-    model = model.to(device)
+    model = Detector(img_depth=frame_depth).to(device)
     # load model from checkpoint
-    model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
+    model.load_state_dict(torch.load(input_model_path, map_location='cpu')).to(device)
     criterion = DetectionLoss()
     detector_out_shape = (batch_size, model.out_channels, frame_width // (2 ** model.n_pools),
                           frame_length // (2 ** model.n_pools))

@@ -18,7 +18,7 @@ parser_train.add_argument("-d", "--data", type=str, default="./data", help="dire
 
 # Evaluation parser
 parser_eval = subparsers.add_parser("eval", description="Evaluates provided model on validation set")
-parser_eval.add_argument("-m", "--model", type=str, required=True, help="directory to saved model")
+parser_eval.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
 parser_eval.add_argument("-c", "--config", type=str,  help="config with training parameters")
 parser_eval.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
