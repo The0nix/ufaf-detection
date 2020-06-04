@@ -102,8 +102,8 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
 
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
-              optimizer: Optimizer = None, device: Union[torch.device, str] = torch.device('cpu')) \
-        -> Optional[Tuple[float, float]]:
+              optimizer: Optimizer = None, n_dumps_per_epoch: int = 10,
+              device: Union[torch.device, str] = torch.device('cpu')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
     :param model: pytorch model to be trained or validated
@@ -114,6 +114,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param mode: `train` or `val', controls model parameters update need
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
+    :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard
     :param device: device to be used for model related computations
     :return: values for cumulative loss and score (only in 'val' mode)
     """
@@ -145,7 +146,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     if mode == 'val':
         writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
         writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
-        return cumulative_loss, cumulative_score
+        return cumulative_loss / len(loader), cumulative_score / len(loader)
 
 
 def train(data_path: str, model_path: str, tb_path: str = None,
@@ -204,7 +205,6 @@ def train(data_path: str, model_path: str, tb_path: str = None,
         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
 
-    best_val_loss = float('inf')
     best_val_score = float('-inf')
     for epoch in trange(n_epochs, desc="Epoch"):
         run_epoch(model, train_loader, criterion, gt_former, epoch, mode='train',
@@ -213,21 +213,21 @@ def train(data_path: str, model_path: str, tb_path: str = None,
         val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch,
                                         mode='val', writer=val_writer, device=device)
         # saving model weights in case validation loss AND score are better
-        if val_loss < best_val_loss and val_score > best_val_score:
-            best_val_loss, best_val_score = val_loss, val_score
+        if val_score > best_val_score:
+            best_val_score = val_score
             torch.save(model.state_dict(), f'{model_path}/{date}.pth')
             print('\nModel checkpoint is saved.\n',
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1.0-trainval',
+def eval(data_path: str, model_path: str, n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
          n_loader_workers: int = 8, batch_size: int = 32):
     """
     Evaluate model.
     :param data_path: relative path to data folder
     :param model_path: relative path to save model weights
     :param n_scenes: number of scenes in dataset
-    :param version: version of the dataset
+    :param nuscenes_version: version of the dataset
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     """
@@ -240,7 +240,7 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1
         print('Using device: CPU\n')
 
     # set up dataset and model
-    nuscenes = create_nuscenes(data_path)
+    nuscenes = create_nuscenes(data_path, version=nuscenes_version)
     eval_dataset = NuscenesBEVDataset(nuscenes=nuscenes, n_scenes=n_scenes, mode='val')
     eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
@@ -253,8 +253,8 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, version: str = 'v1
     # load model from checkpoint
     model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
     criterion = DetectionLoss()
-    detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
-                         frame_length // (2 ** model.n_pools)
+    detector_out_shape = (batch_size, model.out_channels, frame_width // (2 ** model.n_pools),
+                          frame_length // (2 ** model.n_pools))
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
     eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val')
     return eval_loss, eval_score
