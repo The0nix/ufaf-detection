@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import torch
+import numpy as np
 
 
 def bbox_to_coordinates(bboxes: torch.Tensor, rot: bool = False) -> torch.Tensor:
@@ -60,8 +61,8 @@ def calc_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
 
     # Calculate intersection from corners as width * height
     intersection = (
-        (right_bottom_x - left_top_x) * (right_bottom_y - left_top_y)
-        * ((right_bottom_y > left_top_y) & (right_bottom_x > left_top_x))
+            (right_bottom_x - left_top_x) * (right_bottom_y - left_top_y)
+            * ((right_bottom_y > left_top_y) & (right_bottom_x > left_top_x))
     )
 
     # Calculate areas as width * length and expand to matrix
@@ -73,3 +74,64 @@ def calc_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     # Calculate union and return iou
     union = boxes1_area + boxes2_area - intersection
     return intersection / union
+
+
+class Bbox_getter:
+    """
+    Extracts bounding boxes from model prediction.
+    :param threshold: float, threshold probablity of classification (<=threshold - no bbox, >threshold - bbox)
+    :param scaling_factor: int, 2**(num_maxpool) scaling factor to map output from model prediction to original "image"
+    :param voxels_per_meter: number of voxels per meter in the frames
+    :param car_size: size of the car in meters
+    """
+
+    def __init__(self, threshold: float, scaling_factor: int = 1, voxels_per_meter: int = 5, car_size: int = 5):
+        self.threshold = threshold
+        self.scaling_factor = scaling_factor
+        self.voxels_per_meter = voxels_per_meter
+        self.car_size = car_size
+        self.bbox_scaling = car_size * voxels_per_meter
+        self.predefined_bboxes = [[1, 1], [1, 2], [2, 1], [1, 6], [6, 1], [2, 2]]
+
+    def __call__(self, image: torch.Tensor) -> np.ndarray:
+        """
+        :param image: torch.Tensor feature map shape: (batch,img_width, img_length, depth), output of detector
+        :return: np.ndarray of bboxes
+        """
+
+        bboxes = np.zeros([6, 0])
+        batch, depth, w, l = image.shape
+        image.permute(0, 2, 3, 1)
+        image = image.reshape(batch, w, l, depth // 6, 6)
+        classification_index = depth // 6 - 1
+
+        # find bboxes indexes
+        cars_indeces = (image[:, :, :, classification_index, :] > self.threshold).nonzero().numpy()
+
+        # extract and scale parameters for all found bboxes
+        for car_idx in cars_indeces:
+            bbox_center_y = car_idx[1] * self.scaling_factor
+            predicted_displacement_y = image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 0] \
+                * self.predefined_bboxes[car_idx[3]][0]
+            y = bbox_center_y - predicted_displacement_y
+
+            bbox_center_x = car_idx[2] * self.scaling_factor
+            predicted_displacement_x = image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 1] \
+                * self.predefined_bboxes[car_idx[3]][1]
+            x = bbox_center_x - predicted_displacement_x
+
+            predicted_w = image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 2]
+            w = torch.exp(predicted_w * self.bbox_scaling * self.predefined_bboxes[car_idx[3]][1])
+
+            h = torch.exp(image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 3]
+                          * self.bbox_scaling * self.predefined_bboxes[car_idx[3]][1])
+
+            angle1 = image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 4]
+            angle2 = image[car_idx[0], car_idx[1], car_idx[2], car_idx[3], 5]
+
+            bbox = np.array([y, x, w, h, angle1, angle2]).reshape(6, 1)
+            bboxes = np.append(bboxes, bbox, axis=1)
+
+        return bboxes
+
+
