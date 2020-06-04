@@ -19,7 +19,7 @@ from model import Detector, GroundTruthFormer
 class DetectionLoss(nn.modules.loss._Loss):
     """
     Combination of losses for both regression and classification targets
-    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
+    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell вот в чё
     :param regression_values_per_unit: number of regression values per bounding box
     :param classification_values_per_unit: number of classes for classification problem
     :param regression_base_loss: loss function to be used for regression targets
@@ -101,9 +101,11 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
     return grid, bboxes
 
 
+# noinspection PyUnboundLocalVariable
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: Optimizer = None, n_dumps_per_epoch: int = 10,
+              train_loader_size: int = None,
               device: Union[torch.device, str] = torch.device('cpu')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
@@ -116,6 +118,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
     :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard
+    :param train_loader_size: number of objects in the train loader, needed for plots scaling
     :param device: device to be used for model related computations
     :return: values for cumulative loss and score (only in 'val' mode)
     """
@@ -145,9 +148,16 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             cumulative_loss += loss.item()
             cumulative_score += score
     if mode == 'val':
-        writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
-        writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
-        return cumulative_loss / len(loader), cumulative_score / len(loader)
+        if train_loader_size is not None:
+            # scales val data to train data on the plots
+            iterations = epoch * train_loader_size + loader.batch_size
+        else:
+            iterations = epoch * len(loader) + loader.batch_size
+        cumulative_loss /= len(loader)
+        cumulative_score /= len(loader)
+        writer.add_scalar('Loss', cumulative_loss, iterations)
+        writer.add_scalar('Score', cumulative_score, iterations)
+        return cumulative_loss, cumulative_score
 
 
 def train(data_path: str, model_path: str, tb_path: str = None,
@@ -212,7 +222,8 @@ def train(data_path: str, model_path: str, tb_path: str = None,
                   writer=train_writer, optimizer=optimizer, device=device)
         scheduler.step()
         val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch,
-                                        mode='val', writer=val_writer, device=device)
+                                        mode='val', train_loader_size=len(train_loader), writer=val_writer,
+                                        device=device)
         # saving model weights in case validation loss AND score are better
         if val_score > best_val_score:
             best_val_score = val_score
