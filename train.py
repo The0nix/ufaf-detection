@@ -145,8 +145,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             cumulative_loss += loss.item()
             cumulative_score += score
     if mode == 'val':
-        writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
-        writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
+        writer.add_scalar('Loss', cumulative_loss / len(loader), epoch * len(loader) + loader.batch_size)
+        writer.add_scalar('Score', cumulative_score / len(loader), epoch * len(loader) + loader.batch_size)
         return cumulative_loss / len(loader), cumulative_score / len(loader)
 
 
