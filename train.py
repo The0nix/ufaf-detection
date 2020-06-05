@@ -184,6 +184,8 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
 
     # set up computing device for pytorch
     if torch.cuda.is_available():
+        if device_id is None:
+            device_id = [0]
         if max(device_id) < torch.cuda.device_count():
             # devide_id/s all exist on machine,
             # device is set as a root device
