@@ -207,15 +207,16 @@ def train(data_path: str, model_path: str, tb_path: str = None,
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth)
-    if not isinstance(device_id, int):
-        model = nn.DataParallel(model, device_ids=device_id)
-    model = model.to(device)
     criterion = DetectionLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
+
+    if not isinstance(device_id, int):
+        model = nn.DataParallel(model, device_ids=device_id)
+    model = model.to(device)
 
     best_val_score = float('-inf')
     for epoch in trange(n_epochs, desc="Epoch"):
