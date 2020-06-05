@@ -152,7 +152,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
 
 def train(data_path: str, model_path: str, tb_path: str = None,
           n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
-          n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100) -> None:
+          n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100,
+          device_id: int = 0) -> None:
     """
     Train model, log training statistics if tb_path is specified.
     :param data_path: relative path to data folder
@@ -163,13 +164,20 @@ def train(data_path: str, model_path: str, tb_path: str = None,
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     :param n_epochs: total number of epochs to train the model
+    :param device_id: int or list of gpu device ids, e.g [0, 1]
     """
     # create path for model save
     os.makedirs(model_path, exist_ok=True)
 
     # set up computing device for pytorch
     if torch.cuda.is_available():
-        device = torch.device('cuda')
+        if not isinstance(device_id, int) and torch.cuda.device_count() >= len(device_id):
+            device = torch.device(f'cuda:{device_id[0]}')
+        elif torch.cuda.device_count() < len(device_id):
+            device = torch.device(f'cuda:{device_id[0]}')
+            print('Warning:specified number of gpu devices is larger than available, using only one.')
+        else:
+            device = torch.device(f'cuda:{device_id}')
         print('Using device: GPU\n')
     else:
         device = torch.device('cpu')
@@ -198,7 +206,10 @@ def train(data_path: str, model_path: str, tb_path: str = None,
           f'Number of bathces in validation loader: {len(val_loader)}')
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
-    model = Detector(img_depth=frame_depth).to(device)
+    model = Detector(img_depth=frame_depth)
+    if not isinstance(device_id, int):
+        model = nn.DataParallel(model, device_ids=device_id)
+    model = model.to(device)
     criterion = DetectionLoss()
     optimizer = Adam(model.parameters(), lr=1e-4)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
