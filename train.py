@@ -35,8 +35,8 @@ class DetectionLoss(nn.modules.loss._Loss):
         self.regression_values_per_unit = regression_values_per_unit
         self.classification_values_per_unit = classification_values_per_unit
         self.negative_positive_ratio = negative_positive_ratio
-        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss(reduction='none')
-        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss(reduction='none')
+        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
+        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
 
     # noinspection PyUnresolvedReferences
     def __call__(self, predictions: Tuple[torch.Tensor, torch.Tensor],
@@ -62,23 +62,17 @@ class DetectionLoss(nn.modules.loss._Loss):
         n_positive = gt_classification.sum()
         n_values_to_eliminate = int((torch.numel(gt_classification) - (self.negative_positive_ratio + 1) * n_positive))
 
-        regression_loss = self.regression_base_loss(pred_regression, gt_regression)
-        classification_loss = self.classification_base_loss(pred_classification, gt_classification)
-
         # n_values_to_eliminate can be less than zero when classes on the provided frames are already well balanced:
         if n_values_to_eliminate > 0:
             negative_probs = pred_classification * (1 - gt_classification)
             negative_probs = negative_probs.flatten()
-            negative_probs_ix = torch.topk(negative_probs, k=n_values_to_eliminate, largest=False).indices  # filter low negative probabilities
-
-            mask = torch.ones_like(pred_classification, device=pred_classification.device).flatten()
-            mask[negative_probs_ix] = 0
-            mask = mask.view_as(pred_classification)
-            mask = (mask + gt_classification).clamp(max=1)
-
-            classification_loss *= mask
-            regression_loss *= mask.unsqueeze(-1)
-        return regression_loss.mean() + classification_loss.mean()
+            negative_probs[torch.topk(negative_probs, k=n_values_to_eliminate,
+                                      largest=False).indices] = -1e9  # filter low negative probabilities
+            negative_probs = negative_probs.view_as(pred_classification)
+            pred_classification *= gt_classification  # leave only positive predictions
+            pred_classification += negative_probs     # add mined negative predictions
+        return self.regression_base_loss(pred_regression, gt_regression) + \
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 def pr_auc(gt_classes: torch.Tensor, preds: torch.Tensor) -> float:
@@ -107,9 +101,11 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
     return grid, bboxes
 
 
+# noinspection PyUnboundLocalVariable
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: Optimizer = None, n_dumps_per_epoch: int = 10,
+              train_loader_size: int = None,
               device: Union[torch.device, str] = torch.device('cpu')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
@@ -122,6 +118,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
     :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard (not implemented yet)
+    :param train_loader_size: number of objects in the train loader, needed for plots scaling in val mode
     :param device: device to be used for model related computations
     :return: values for cumulative loss and score (only in 'val' mode)
     """
@@ -151,9 +148,16 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             cumulative_loss += loss.item()
             cumulative_score += score
     if mode == 'val':
-        writer.add_scalar('Loss', cumulative_loss / len(loader), epoch * len(loader) + loader.batch_size)
-        writer.add_scalar('Score', cumulative_score / len(loader), epoch * len(loader) + loader.batch_size)
-        return cumulative_loss / len(loader), cumulative_score / len(loader)
+        if train_loader_size is not None:
+            # scales val data to train data on the plots
+            iterations = epoch * train_loader_size + loader.batch_size
+        else:
+            iterations = epoch * len(loader) + loader.batch_size
+        cumulative_loss /= len(loader)
+        cumulative_score /= len(loader)
+        writer.add_scalar('Loss', cumulative_loss, iterations)
+        writer.add_scalar('Score', cumulative_score, iterations)
+        return cumulative_loss, cumulative_score
 
 
 def train(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
@@ -224,7 +228,8 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                   writer=train_writer, optimizer=optimizer, device=device)
         scheduler.step()
         val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch,
-                                        mode='val', writer=val_writer, device=device)
+                                        mode='val', train_loader_size=len(train_loader), writer=val_writer,
+                                        device=device)
         # saving model weights in case validation loss AND score are better
         if val_score > best_val_score:
             best_val_score = val_score
@@ -233,13 +238,12 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, input_model_path: Optional[str] = None, n_scenes: int = 85,
-         nuscenes_version: str = 'v1.0-trainval', n_loader_workers: int = 8, batch_size: int = 32) \
-        -> Tuple[float, float]:
+def eval(data_path: str, model_path: str, n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
+         n_loader_workers: int = 8, batch_size: int = 32):
     """
     Evaluate model.
     :param data_path: relative path to data folder
-    :param input_model_path: path to model weights. If None, create new model
+    :param model_path: relative path to save model weights
     :param n_scenes: number of scenes in dataset
     :param nuscenes_version: version of the dataset
     :param n_loader_workers: number of CPU workers for data loader processing
@@ -265,7 +269,7 @@ def eval(data_path: str, input_model_path: Optional[str] = None, n_scenes: int =
     frame_depth, frame_width, frame_length = eval_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
     # load model from checkpoint
-    model.load_state_dict(torch.load(input_model_path, map_location='cpu')).to(device)
+    model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
     criterion = DetectionLoss()
     detector_out_shape = (batch_size, model.out_channels, frame_width // (2 ** model.n_pools),
                           frame_length // (2 ** model.n_pools))
