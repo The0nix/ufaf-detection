@@ -39,22 +39,25 @@ def draw_bev(grid: Union["torch.Tensor", np.ndarray], ax: Optional[plt.Axes] = N
 
 
 @auto_ax
-def draw_bev_with_bboxes(grid: Union["torch.Tensor", np.ndarray],
-                         bboxes: List[Union["torch.Tensor", np.ndarray]],
+def draw_bev_with_bboxes(grid: "torch.Tensor",
+                         bboxes: "torch.Tensor",
+                         edgecolor: str = "r",
+                         label : str = None,
                          ax: Optional[plt.Axes] = None) -> plt.Axes:
     """
     Draw bird eye view of voxel grid and corresponding bounding boxes using matplotlib
     :param grid: torch.Tensor or np.ndarray of shape (depth, height, width) representing voxel grid
-    :param bboxes: list of bounding boxes of (y, x, w, l, a_sin, a_cos)
+    :param bboxes: torch.Tensor of bounding boxes of (y, x, w, l, a_sin, a_cos)
     :param ax: plt.Axes to draw in. If None, plt.Axes object will be created
     :return: plt.Axes object with visualized grid and bounding boxes
     """
     draw_bev(grid, ax=ax)
+    boxes_vertices = utils.bbox_to_coordinates(bboxes, rot=True)[:, :, [1, 0]] # y and x coordinates must be swapped for plotter
 
     # Create and add patch for each bbox
-    for i, bbox in enumerate(bboxes):
-        vertices = utils.bbox_to_coordinates(bbox, rot=True)[:, [1, 0]]  # y and x coordinates must be swapped for plotter 
-        patch = patches.Polygon(vertices, linewidth=1, edgecolor='r', facecolor='none')
+    for i, vertices in enumerate(boxes_vertices):
+        patch = patches.Polygon(vertices, linewidth=1, edgecolor=edgecolor, facecolor='none',label=label)
+        label = None
         ax.add_patch(patch)
 
     return ax

@@ -132,3 +132,7 @@ dmypy.json
 
 #model checkpoints
 checkpoints/
+tb/
+
+#saved pics
+pics/
