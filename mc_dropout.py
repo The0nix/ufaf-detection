@@ -18,12 +18,11 @@ class Mc_processor():
          :param data_path: relative path to data folder
          :param version: version of the dataset
          :param n_scenes: number of scenes in dataset
-         :param data_number: id of data(grid) in scene
          :param threshold: threshold for choosing is bbox or not
          :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, seond - gt_bboxes
     """
 
-    def __init__(self, data_path: str, version: str = "v1.0-mini", n_scenes: int = 85, data_number: int = 0,
+    def __init__(self, data_path: str, version: str = "v1.0-mini", n_scenes: int = 85,
                  threshold: int = 0.5, model_path: str = None, model: torch.nn.Module = None):
 
         self.version = version
@@ -252,14 +251,11 @@ if __name__ == "__main__":
     #                             model=model)
     # ax_gt, ax_pred = mc_processor.visualise_montecarlo(data_number=20, n_samples=10)
     # plt.show()
-
     # processing saved model
-    mc_processor = Mc_processor(data_path, version="v1.0-mini", n_scenes=n_scenes, data_number=20,
+
+    mc_processor = Mc_processor(data_path, version="v1.0-mini", n_scenes=n_scenes,
                                 model_path="/home/robot/Downloads/Jun-05-2020-01_31_26.pth")
-    fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(data_number=20, n_samples=10, save_imgs=1)
+    fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(data_number=21, n_samples=10, save_imgs=1)
 
     version = "v1.0-mini"
     data_number = 20
-
-
-

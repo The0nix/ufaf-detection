@@ -24,13 +24,17 @@ def auto_ax(func):
 
 
 @auto_ax
-def draw_bev(grid: Union["torch.Tensor", np.ndarray], ax: Optional[plt.Axes] = None) -> plt.Axes:
+def draw_bev(grid: Union["torch.Tensor", np.ndarray],
+             ax: Optional[plt.Axes] = None) -> plt.Axes:
     """
     Draw bird eye view of voxel grid using matplotlib
     :param grid: torch.Tensor or np.ndarray of shape (depth, height, width) representing voxel grid
     :param ax: plt.Axes to draw in. If None, plt.Axes object will be created
     return: plt.Axes object with visualized grid
     """
+    if len(grid.shape) == 4 and grid.shape[0] == 1:
+        # squeeze time dimension if possible
+        grid = grid.squeeze(0)
     grid = np.asarray(grid)
     grid = grid.sum(axis=0).clip(max=1)
     ax.imshow(grid, cmap="gray")
@@ -56,8 +60,7 @@ def draw_bev_with_bboxes(grid: "torch.Tensor",
 
     # Create and add patch for each bbox
     for i, vertices in enumerate(boxes_vertices):
-        patch = patches.Polygon(vertices, linewidth=1, edgecolor=edgecolor, facecolor='none',label=label)
+        patch = patches.Polygon(vertices, linewidth=1, edgecolor=edgecolor, facecolor='none', label=label)
         label = None
         ax.add_patch(patch)
-
     return ax
