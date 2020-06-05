@@ -12,7 +12,7 @@ subparsers = parser.add_subparsers(title="commands", help="", required=True, des
 # Training parser
 parser_train = subparsers.add_parser("train", description="Trains the model with provided "
                                                           "parameters and outputs weights")
-parser_train.add_argument("-o", "--output", type=str, required=True, help="path to save model to")
+parser_train.add_argument("-o", "--output", type=str, required=True, help="directory to save model to")
 parser_train.add_argument("-c", "--config", type=str, help="config with training parameters")
 parser_train.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 parser_train.add_argument("-g", "--gpu", type=int, nargs='*', default="0", help="list of available gpus")

@@ -101,9 +101,11 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
     return grid, bboxes
 
 
+# noinspection PyUnboundLocalVariable
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
               optimizer: Optimizer = None, n_dumps_per_epoch: int = 10,
+              train_loader_size: int = None,
               device: Union[torch.device, str] = torch.device('cpu')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
@@ -115,7 +117,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param mode: `train` or `val', controls model parameters update need
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
-    :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard
+    :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard (not implemented yet)
+    :param train_loader_size: number of objects in the train loader, needed for plots scaling in val mode
     :param device: device to be used for model related computations
     :return: values for cumulative loss and score (only in 'val' mode)
     """
@@ -145,29 +148,39 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             cumulative_loss += loss.item()
             cumulative_score += score
     if mode == 'val':
-        writer.add_scalar('Loss', loss.item(), epoch * len(loader) + loader.batch_size)
-        writer.add_scalar('Score', score, epoch * len(loader) + loader.batch_size)
-        return cumulative_loss / len(loader), cumulative_score / len(loader)
+        if train_loader_size is not None:
+            # scales val data to train data on the plots
+            iterations = epoch * train_loader_size + loader.batch_size
+        else:
+            iterations = epoch * len(loader) + loader.batch_size
+        cumulative_loss /= len(loader)
+        cumulative_score /= len(loader)
+        writer.add_scalar('Loss', cumulative_loss, iterations)
+        writer.add_scalar('Score', cumulative_score, iterations)
+        return cumulative_loss, cumulative_score
 
 
-def train(data_path: str, model_path: str, tb_path: str = None,
-          n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
-          n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100,
-          device_id: List[int] = [0]) -> None:
+def train(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
+          n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval', learning_rate: int = 1e-4,
+          n_dumps_per_epoch: int = 10, n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100,
+          device_id: List[int] = None) -> None:
     """
     Train model, log training statistics if tb_path is specified.
     :param data_path: relative path to data folder
-    :param model_path: relative path to save model weights
+    :param output_model_dir: path to directory to save model weights to
+    :param input_model_path: path to model weights. If None, create new model
     :param tb_path: name of the folder for tensorboard data to be store in
     :param n_scenes: number of scenes in dataset
     :param nuscenes_version: version of the dataset
+    :param learning_rate: learning rate for Adam
+    :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard (not implemented yet)
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     :param n_epochs: total number of epochs to train the model
     :param device_id: list of gpu device ids to use, e.g [0, 1]
     """
     # create path for model save
-    os.makedirs(model_path, exist_ok=True)
+    os.makedirs(output_model_dir, exist_ok=True)
 
     # set up computing device for pytorch
     if torch.cuda.is_available():
@@ -208,8 +221,11 @@ def train(data_path: str, model_path: str, tb_path: str = None,
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth)
+    if input_model_path is not None:
+        model.load_state_dict(torch.load(input_model_path, map_location="cpu"))
+    model = model.to(device)
     criterion = DetectionLoss()
-    optimizer = Adam(model.parameters(), lr=1e-4)
+    optimizer = Adam(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
         frame_length // (2 ** model.n_pools)
@@ -226,11 +242,12 @@ def train(data_path: str, model_path: str, tb_path: str = None,
                   writer=train_writer, optimizer=optimizer, device=device)
         scheduler.step()
         val_loss, val_score = run_epoch(model, val_loader, criterion, gt_former, epoch,
-                                        mode='val', writer=val_writer, device=device)
+                                        mode='val', train_loader_size=len(train_loader), writer=val_writer,
+                                        device=device)
         # saving model weights in case validation loss AND score are better
         if val_score > best_val_score:
             best_val_score = val_score
-            torch.save(model.state_dict(), f'{model_path}/{date}.pth')
+            torch.save(model.state_dict(), f'{output_model_dir}/{date}.pth')
             print('\nModel checkpoint is saved.\n',
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
