@@ -1,5 +1,5 @@
 tb_path: "./tb"
-batch_size: 8
+batch_size: 12
 n_loader_workers: 4
-nuscenes_version: "v1.0-trainval"
-n_scenes: 10
+nuscenes_version: "v1.0-mini"
+n_scenes: 85
