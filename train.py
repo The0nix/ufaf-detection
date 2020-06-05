@@ -19,7 +19,7 @@ from model import Detector, GroundTruthFormer
 class DetectionLoss(nn.modules.loss._Loss):
     """
     Combination of losses for both regression and classification targets
-    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell вот в чё
+    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
     :param regression_values_per_unit: number of regression values per bounding box
     :param classification_values_per_unit: number of classes for classification problem
     :param regression_base_loss: loss function to be used for regression targets
@@ -118,7 +118,7 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
     :param writer: tensorboard writer
     :param optimizer: pytorch model parameters optimizer
     :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard
-    :param train_loader_size: number of objects in the train loader, needed for plots scaling
+    :param train_loader_size: number of objects in the train loader, needed for plots scaling in val mode
     :param device: device to be used for model related computations
     :return: values for cumulative loss and score (only in 'val' mode)
     """
