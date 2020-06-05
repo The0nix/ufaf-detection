@@ -11,7 +11,7 @@ torch.random.manual_seed(1)
 
 
 
-class Mc_processor():
+class McProcessor:
     """
         Forms Monte Carlo based uncertanties and visualizes them
          :param model: pytorch model
@@ -91,13 +91,14 @@ class Mc_processor():
 
         return fig, ax_gt, ax_pred
 
+
     def apply_monte_carlo(self, data_number: int = 0,
                           n_samples: int = 10) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
            Apply Monte Carlo dropout  for representing model uncertainty
 
-           :param data_path: relative path to data folder
-           :param: n_samples: numper of samples for Monte Carlo approach
+           :param data_number: id of data(grid) in scene
+           :param: n_samples: number of samples for Monte Carlo approach
            :return: Tuple(torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor) -
                                                     1st  - tensor of mean values of class model prediction,
                                                     2nd - tensor of standart deviations of class model prediction
@@ -148,14 +149,12 @@ class Mc_processor():
                sima_regr: torch.Tensor, data_number: int = 0):
         """
            visualization of predictions processed by self.apply_monte_carlo
-
            :param mean_class: relative path to data folder
            :param sigma_class: version of the dataset
            :param mean_regr: number of scenes in dataset
            :param sima_regr: id of data(grid) in scene
            :param data_number: id of data(grid) in scene
            :return: Tuple(matplotlib.Axes, matplotlib.Axes) -  gtplots
-
         """
 
         if torch.cuda.is_available():
@@ -166,7 +165,6 @@ class Mc_processor():
         grid, boxes = self.dataset[data_number]
         frame_depth, frame_width, frame_length = self.get_grid_size()
 
-        # batch_size, frame_depth, frame_width, frame_length = grid.shape
         detector_out_shape = 1, self.model.out_channels, frame_width // (2 ** self.model.n_pools), \
                              frame_length // (2 ** self.model.n_pools)
         gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
@@ -174,15 +172,12 @@ class Mc_processor():
         is_bbox = torch.sigmoid(mean_class) > 0.5
         unc_prior_bboxes = gt_former.prior_boxes_params[is_bbox.squeeze()]
 
-        not_25_25 = unc_prior_bboxes[
-            torch.sum(unc_prior_bboxes[:, 2:4] != torch.tensor([25, 25]).to(device), dim=1).bool()]
-
-        single_prior_boxes = gt_former.prior_boxes_params[(torch.sigmoid(mean_class) > 0.5).squeeze()]
         grid = grid.cpu().squeeze()
 
         fig = plt.figure(figsize=(12,24))
         ax_gt = fig.add_subplot(2, 1, 1)
         ax_pred = fig.add_subplot(2, 1, 2)
+
         # plot gt bboxes
         ax_gt = draw_bev_with_bboxes(grid, boxes.cpu(), edgecolor="red", ax=ax_gt)
 
@@ -253,9 +248,7 @@ if __name__ == "__main__":
     # plt.show()
     # processing saved model
 
-    mc_processor = Mc_processor(data_path, version="v1.0-mini", n_scenes=n_scenes,
+    mc_processor = McProcessor(data_path, version="v1.0-mini", n_scenes=n_scenes,
                                 model_path="/home/robot/Downloads/Jun-05-2020-01_31_26.pth")
     fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(data_number=21, n_samples=10, save_imgs=1)
 
-    version = "v1.0-mini"
-    data_number = 20
