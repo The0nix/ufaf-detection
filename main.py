@@ -15,6 +15,8 @@ parser_train = subparsers.add_parser("train", description="Trains the model with
 parser_train.add_argument("-o", "--output", type=str, required=True, help="directory to save model to")
 parser_train.add_argument("-c", "--config", type=str, help="config with training parameters")
 parser_train.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
+parser_train.add_argument("-g", "--gpu", type=int, nargs='*', default="0", help="list of available gpus")
+
 
 # Evaluation parser
 parser_eval = subparsers.add_parser("eval", description="Evaluates provided model on validation set")
@@ -39,7 +41,7 @@ if __name__ == "__main__":
 
     if args.command == "train":
         params = load_yaml(args.config) if args.config else {}
-        train.train(args.data, args.output, **params)
+        train.train(args.data, args.output, device_id=args.gpu, **params)
     elif args.command == "eval":
         params = load_yaml(args.config) if args.config else {}
         train.eval(args.data, args.model, **params)

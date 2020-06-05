@@ -162,7 +162,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
 
 def train(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
           n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval', learning_rate: int = 1e-4,
-          n_dumps_per_epoch: int = 10, n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100) -> None:
+          n_dumps_per_epoch: int = 10, n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100,
+          device_id: List[int] = None) -> None:
     """
     Train model, log training statistics if tb_path is specified.
     :param data_path: relative path to data folder
@@ -176,13 +177,23 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     :param n_epochs: total number of epochs to train the model
+    :param device_id: list of gpu device ids to use, e.g [0, 1]
     """
     # create path for model save
     os.makedirs(output_model_dir, exist_ok=True)
 
     # set up computing device for pytorch
     if torch.cuda.is_available():
-        device = torch.device('cuda')
+        if device_id is None:
+            device_id = [0]
+        if max(device_id) < torch.cuda.device_count():
+            # devide_id/s all exist on machine,
+            # device is set as a root device
+            device = torch.device(f'cuda:{device_id[0]}')
+        else:
+            # device_id is out of range, setting to defaults cuda:0
+            print('Warning: specified number of gpu device_id is larger than available, using cuda:0.')
+            device = torch.device('cuda:0')
         print('Using device: GPU\n')
     else:
         device = torch.device('cpu')
@@ -221,6 +232,11 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
     detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
         frame_length // (2 ** model.n_pools)
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
+
+    if len(device_id) > 1 and max(device_id) < torch.cuda.device_count():
+        # if more than one device_id specified, use DataParallel
+        model = nn.DataParallel(model, device_ids=device_id)
+    model = model.to(device)
 
     best_val_score = float('-inf')
     for epoch in trange(n_epochs, desc="Epoch"):
