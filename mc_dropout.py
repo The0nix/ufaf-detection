@@ -119,7 +119,7 @@ class McProcessor:
                                                     4th - tensor of standart deviations of regression model prediction
            """
         
-        assert (n_samples>1)
+        assert n_samples>1, "Need minimum 2 samples to calculate variance"
 
         # set up computing device for pytorch
 
@@ -246,21 +246,8 @@ if __name__ == "__main__":
     data_path = "C:\\repos\\v1.0-mini"
     n_scenes = 10
 
-    # t = torch.rand(1,25,46,6)
-    # t1 = torch.rand(4,25,46,6)
-    # t2 = torch.cat((t1,t),dim=0)
-    # print(t2.shape)
-    # exit()
-    # processing given model
-    # model = Detector(27)
-    # mc_processor = Mc_processor(data_path, version="v1.0-mini", n_scenes=n_scenes, data_number=20,
-    #                             model=model)c
-    # ax_gt, ax_pred = mc_processor.visualise_montecarlo(data_number=20, n_samples=10)
-    # plt.show()
-    # processing saved model
-
     mc_processor = McProcessor(data_path, version="v1.0-mini", n_scenes=n_scenes,
                                 model_path="C:\\Users\\Alex\\Downloads\\Jun-06-2020-02_42_23.pth")
-    fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=2, data_number=21, n_samples=5, save_imgs=0)
+    fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=1, data_number=21, n_samples=10, save_imgs=0)
     plt.show()
 
