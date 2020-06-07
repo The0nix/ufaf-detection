@@ -45,11 +45,15 @@ def draw_bev(grid: Union["torch.Tensor", np.ndarray],
 @auto_ax
 def draw_bev_with_bboxes(grid: "torch.Tensor",
                          bboxes: "torch.Tensor",
+                         edgecolor: str = "r",
+                         label : str = None,
                          ax: Optional[plt.Axes] = None) -> plt.Axes:
     """
     Draw bird eye view of voxel grid and corresponding bounding boxes using matplotlib
     :param grid: torch.Tensor or np.ndarray of shape (depth, height, width) representing voxel grid
     :param bboxes: torch.Tensor of bounding boxes of (y, x, w, l, a_sin, a_cos)
+    :param edgecolor: string color of the bbox edge
+    :param label: string with label to be added to image legend
     :param ax: plt.Axes to draw in. If None, plt.Axes object will be created
     :return: plt.Axes object with visualized grid and bounding boxes
     """
@@ -58,7 +62,9 @@ def draw_bev_with_bboxes(grid: "torch.Tensor",
 
     # Create and add patch for each bbox
     for i, vertices in enumerate(boxes_vertices):
-        patch = patches.Polygon(vertices, linewidth=1, edgecolor='r', facecolor='none')
-        ax.add_patch(patch)
+        patch = patches.Polygon(vertices, linewidth=1, edgecolor=edgecolor, facecolor='none', label=label)
 
+        # to prevent multiple labels
+        label = None
+        ax.add_patch(patch)
     return ax
