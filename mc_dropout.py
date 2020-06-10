@@ -104,7 +104,7 @@ class McProcessor:
                                                 2nd - tensor of standard deviations of class model prediction
                                                 3rd  - tensor of mean values of regression model prediction,
                                                 4th - tensor of standard deviations of regression model prediction
-           """
+        """
         assert n_samples > 1, "Need minimum 2 samples to calculate variance"
 
         # set up computing device for pytorch
@@ -214,14 +214,3 @@ class McProcessor:
         mapped_bb_neg_3sigma[:, 2:4] += 3 * propagated_std
 
         return mapped_bb, mapped_bb_3sigma, mapped_bb_neg_3sigma
-
-
-if __name__ == "__main__":
-    # data_path = "/home/robot/repos/nuscenes/v1.0-mini"
-    data_path = "C:\\repos\\v1.0-mini"
-    n_scenes = 10
-    mc_processor = McProcessor(data_path, version="v1.0-mini", n_scenes=n_scenes,
-                               model_path="C:\\Users\\Alex\\Downloads\\Jun-06-2020-02_42_23.pth")
-    fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=1, data_number=21, n_samples=10, save_imgs=False)
-    plt.show()
-
