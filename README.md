@@ -6,8 +6,9 @@ This is the repository for Deep Learning course final project made by Tamerlan T
 ## Installation
 Create your virtual environment with Python 3.8+ and install dependencies using
 ```
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
+Note that you will need Ubuntu 18.04 for simple installation. Otherwise it's needed to build open3d from source.
 
 ## Usage
 First you need to download and uncompress the nuScenes dataset: https://www.nuscenes.org/download.
@@ -25,6 +26,6 @@ After that you can launch training with the following command
 ### Uncertainty estimation
 For obtaining uncertainty estimates you have to edit [./mc_dropout.py](mc_dropout.py) and provide proper `data_path` and `model_path`, `n_scenes` and `version` variables as well as provide `data_number` of your choice indicating the index of a sample you want to evaluate on. After that you can launch
 ```
-python mc_dropout.py
+python3 mc_dropout.py
 ```
 and resulting images will be saved into `pics/` directory
