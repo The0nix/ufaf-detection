@@ -282,7 +282,7 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, nuscenes_version: 
                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
 
     print('Validation loader is ready.\n',
-          f'Number of batches in eval loader: {len(eval_loader)}\n')
+          f'Number of batches in eval loader: {len(eval_loader)}\n', sep='')
 
     frame_depth, frame_width, frame_length = eval_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
