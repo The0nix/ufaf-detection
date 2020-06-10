@@ -155,8 +155,9 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
             iterations = epoch * len(loader) + loader.batch_size
         cumulative_loss /= len(loader)
         cumulative_score /= len(loader)
-        writer.add_scalar('Loss', cumulative_loss, iterations)
-        writer.add_scalar('Score', cumulative_score, iterations)
+        if writer is not None:
+            writer.add_scalar('Loss', cumulative_loss, iterations)
+            writer.add_scalar('Score', cumulative_score, iterations)
         return cumulative_loss, cumulative_score
 
 
@@ -199,9 +200,10 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
         device = torch.device('cpu')
         print('Using device: CPU\n')
 
+    date = datetime.datetime.now().strftime('%b-%d-%Y-%H:%M:%S')
+
     # set up tensorboard writer
     if tb_path is not None:
-        date = datetime.datetime.now().strftime('%b-%d-%Y-%H:%M:%S')
         train_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/train')
         val_writer = SummaryWriter(log_dir=f'{tb_path}/{date}/val')
         print(f'Logging tensorboard data to directory: {tb_path}/{date}\n')
@@ -219,7 +221,7 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                             collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     print('Loaders are ready.\n',
           f'Number of batches in train loader: {len(train_loader)}\n'
-          f'Number of bathces in validation loader: {len(val_loader)}')
+          f'Number of bathces in validation loader: {len(val_loader)}', sep='')
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth)
@@ -279,16 +281,17 @@ def eval(data_path: str, model_path: str, n_scenes: int = 85, nuscenes_version: 
     eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
 
-    print('Eval loader is ready.\n',
+    print('Validation loader is ready.\n',
           f'Number of batches in eval loader: {len(eval_loader)}\n')
 
     frame_depth, frame_width, frame_length = eval_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
     # load model from checkpoint
-    model.load_state_dict(torch.load(model_path, map_location='cpu')).to(device)
+    model.load_state_dict(torch.load(model_path, map_location='cpu'))
+    model.to(device)
     criterion = DetectionLoss()
     detector_out_shape = (batch_size, model.out_channels, frame_width // (2 ** model.n_pools),
                           frame_length // (2 ** model.n_pools))
-    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape)
-    eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val')
+    gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
+    eval_loss, eval_score = run_epoch(model, eval_loader, criterion, gt_former, epoch=1, mode='val', device=device)
     return eval_loss, eval_score

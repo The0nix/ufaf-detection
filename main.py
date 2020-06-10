@@ -16,6 +16,7 @@ parser_train.add_argument("-o", "--output", type=str, required=True, help="direc
 parser_train.add_argument("-c", "--config", type=str, help="config with training parameters")
 parser_train.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 parser_train.add_argument("-g", "--gpu", type=int, nargs='*', help="list of available GPUs")
+parser_train.add_argument("-t", "--tensorboard", type=str, default="./tb", help="directory for tensorboard logs")
 
 
 # Evaluation parser
@@ -41,7 +42,8 @@ if __name__ == "__main__":
 
     if args.command == "train":
         params = load_yaml(args.config) if args.config else {}
-        train.train(args.data, args.output, device_id=args.gpu, **params)
+        train.train(args.data, args.output, tb_path=args.tensorboard, device_id=args.gpu, **params)
     elif args.command == "eval":
         params = load_yaml(args.config) if args.config else {}
-        train.eval(args.data, args.model, **params)
+        loss, score = train.eval(args.data, args.model, **params)
+        print(f'Validation loss: {loss:.4f}\nValidation mAP score: {score:.4f}')
