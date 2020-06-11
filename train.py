@@ -104,8 +104,7 @@ def frames_bboxes_collate_fn(batch: List[Tuple[torch.Tensor, List[torch.Tensor]]
 # noinspection PyUnboundLocalVariable
 def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.loss._Loss,
               gt_former: GroundTruthFormer, epoch: int, mode: str = 'train', writer: SummaryWriter = None,
-              optimizer: Optimizer = None, n_dumps_per_epoch: int = 10,
-              train_loader_size: int = None,
+              optimizer: Optimizer = None, n_dumps_per_epoch: int = 10, train_loader_size: int = None,
               device: Union[torch.device, str] = torch.device('cpu')) -> Optional[Tuple[float, float]]:
     """
     Run one epoch for model. Can be used for both training and validation.
@@ -162,8 +161,8 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
 
 
 def train(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
-          n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval', learning_rate: int = 1e-4,
-          n_dumps_per_epoch: int = 10, n_loader_workers: int = 8, batch_size: int = 32, n_epochs: int = 100,
+          n_scenes: int = 10, nuscenes_version: str = 'v1.0-mini', learning_rate: int = 1e-4,
+          n_dumps_per_epoch: int = 10, n_loader_workers: int = 4, batch_size: int = 12, n_epochs: int = 50,
           device_id: List[int] = None) -> None:
     """
     Train model, log training statistics if tb_path is specified.
@@ -188,7 +187,7 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
         if device_id is None:
             device_id = [0]
         if max(device_id) < torch.cuda.device_count():
-            # devide_id/s all exist on machine,
+            # device_id/s all exist on machine,
             # device is set as a root device
             device = torch.device(f'cuda:{device_id[0]}')
         else:
@@ -256,8 +255,8 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, model_path: str, n_scenes: int = 85, nuscenes_version: str = 'v1.0-trainval',
-         n_loader_workers: int = 8, batch_size: int = 32):
+def eval(data_path: str, model_path: str, n_scenes: int = 10, nuscenes_version: str = 'v1.0-mini',
+         n_loader_workers: int = 4, batch_size: int = 12):
     """
     Evaluate model.
     :param data_path: relative path to data folder

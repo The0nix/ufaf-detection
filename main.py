@@ -30,7 +30,7 @@ parser_eval.add_argument("-d", "--data", type=str, default="./data", help="direc
 # MC dropout parser
 parser_mc_dropout = subparsers.add_parser("mc-dropout", description="Plots uncertanty boundaries for ")
 parser_mc_dropout.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
-parser_mc_dropout.add_argument("-c", "--config", type=str,  help="config with training parameters")
+parser_mc_dropout.add_argument("-c", "--config", type=str, required=True, help="config with training parameters")
 parser_mc_dropout.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
 

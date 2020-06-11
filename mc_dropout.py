@@ -20,21 +20,21 @@ class McProcessor:
     :param version: version of the dataset
     :param n_scenes: number of scenes in dataset
     :param threshold: threshold for choosing is bbox or not
-    :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, seond - gt_bboxes
+    :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, seсond - gt_bboxes
     """
-    def __init__(self, data_path: str, version: str = "v1.0-mini", n_scenes: int = 85,
+    def __init__(self, data_path: str, n_scenes: int = 10, version: str = 'v1.0-mini',
                  threshold: int = 0.5, model_path: str = None, model: torch.nn.Module = None) -> None:
-        self.version = version
-        self.n_scenes = n_scenes
-        self.nuscenes = create_nuscenes(data_path, version)
-        self.dataset = NuscenesBEVDataset(nuscenes=self.nuscenes, n_scenes=n_scenes)
-
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
             print('Using device: GPU\n')
         else:
             self.device = torch.device('cpu')
             print('Using device: CPU\n')
+
+        self.version = version
+        self.n_scenes = n_scenes
+        self.nuscenes = create_nuscenes(data_path, version)
+        self.dataset = NuscenesBEVDataset(nuscenes=self.nuscenes, n_scenes=n_scenes)
 
         if model is not None:
             self.model = model.to(self.device)
