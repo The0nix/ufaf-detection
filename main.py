@@ -58,6 +58,6 @@ if __name__ == "__main__":
     elif args.command == "mc-dropout":
         mc_processor = mc_dropout.McProcessor(data_path=args.data, model_path=args.model,
                                               version=params['nuscenes_version'], n_scenes=params['n_scenes'])
-        fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=1, data_number=21, n_samples=10,
+        fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=1, frame_id=21, n_samples=10,
                                                                 save_imgs=False)
         plt.show()

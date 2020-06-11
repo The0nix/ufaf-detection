@@ -15,15 +15,14 @@ torch.random.manual_seed(2)
 class McProcessor:
     """
     Forms Monte Carlo based uncertanties and visualizes them
-    :param model: pytorch model
     :param data_path: relative path to data folder
     :param version: version of the dataset
     :param n_scenes: number of scenes in dataset
     :param threshold: threshold for choosing is bbox or not
-    :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, seсond - gt_bboxes
+    :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, second - gt_bboxes
     """
     def __init__(self, data_path: str, n_scenes: int = 10, version: str = 'v1.0-mini',
-                 threshold: int = 0.5, model_path: str = None, model: torch.nn.Module = None) -> None:
+                 threshold: int = 0.5, model_path: str = None) -> None:
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
             print('Using device: GPU\n')
@@ -31,33 +30,25 @@ class McProcessor:
             self.device = torch.device('cpu')
             print('Using device: CPU\n')
 
+        # init dataset
         self.version = version
         self.n_scenes = n_scenes
         self.nuscenes = create_nuscenes(data_path, version)
         self.dataset = NuscenesBEVDataset(nuscenes=self.nuscenes, n_scenes=n_scenes)
 
-        if model is not None:
-            self.model = model.to(self.device)
-        else:
-            assert (model_path is not None)
-            frame_depth, _, _ = self.get_grid_size()
-            self.model = Detector(img_depth=frame_depth)
-            self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        # init model
+        frame_depth, _, _ = self.dataset.grid_size
+        self.model = Detector(img_depth=frame_depth)
+        self.model.load_state_dict(torch.load(model_path))
+        self.model.to(self.device)
 
         self.threshold = threshold
 
-    def get_grid_size(self) -> Tuple[int, int, int]:
-        """
-        :return: Tuple[int, int, int] - first  - frame_depth, frame_width, frame_length
-        """
-        frame_depth, frame_width, frame_length = self.dataset.grid_size
-        return frame_depth, frame_width, frame_length
-
-    def visualise_montecarlo(self, data_number: int = 0, n_samples: int = 10, batch_size: int = 4,
+    def visualise_montecarlo(self, frame_id: int = 0, n_samples: int = 10, batch_size: int = 4,
                              save_imgs: bool = False, saving_folder: str = "pics/") \
             -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
         """
-        :param data_number: id of data(grid) in scene
+        :param frame_id: id of data(grid) in scene
         :param n_samples: number of samples for Monte Carlo approach
         :param batch_size: size of batch
         :param save_imgs: - flag, if true - save figs to folder pics
@@ -69,36 +60,36 @@ class McProcessor:
                             third - prediction plot
         """
 
-        mean_class, _, mean_reg, sigma_reg = self.apply_monte_carlo(data_number, n_samples, batch_size)
-        fig, ax_gt, ax_pred = self._vis_mc(mean_class, mean_reg, sigma_reg, data_number)
+        mean_class, _, mean_reg, sigma_reg = self.apply_monte_carlo(frame_id, n_samples, batch_size)
+        fig, ax_gt, ax_pred = self._vis_mc(mean_class, mean_reg, sigma_reg, frame_id)
 
         if save_imgs:
             if not os.path.exists(saving_folder):
                 os.makedirs(saving_folder)
             img_path = saving_folder + '{version}_{n_scenes}_{data_number}_full.png'.format(
-                       version=self.version, n_scenes=self.n_scenes, data_number=data_number)
+                       version=self.version, n_scenes=self.n_scenes, data_number=frame_id)
 
             fig.savefig(img_path)
             img_path = saving_folder + '{version}_{n_scenes}_{data_number}_gt.png'.format(
-                        version=self.version, n_scenes=self.n_scenes, data_number=data_number)
+                        version=self.version, n_scenes=self.n_scenes, data_number=frame_id)
             extent = ax_gt.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
 
             fig.savefig(img_path, bbox_inches=extent)
 
             img_path = saving_folder + '{version}_{n_scenes}_{data_number}_pred.png'.format(
-                        version=self.version, n_scenes=self.n_scenes, data_number=data_number)
+                        version=self.version, n_scenes=self.n_scenes, data_number=frame_id)
             extent_ped = ax_pred.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
             fig.savefig(img_path, bbox_inches=extent_ped)
 
         return fig, ax_gt, ax_pred
 
-    def apply_monte_carlo(self, data_number: int = 0, n_samples: int = 10, batch_size: int = 4) \
+    def apply_monte_carlo(self, frame_id: int = 0, n_samples: int = 10, batch_size: int = 4) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Apply Monte Carlo dropout  for representing model uncertainty
-        :param data_number: id of data(grid) in scene
+        :param frame_id: id of data(grid) in scene
         :param n_samples: number of samples for Monte Carlo approach
-        :param batch_size: = size of bach
+        :param batch_size: = size of batch
         :return: Tuple(torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor) -
                                                 1st  - tensor of mean values of class model prediction,
                                                 2nd - tensor of standard deviations of class model prediction
@@ -112,7 +103,7 @@ class McProcessor:
         # keep dropouts active
         self.model.train()
 
-        grid, boxes = self.dataset[data_number]
+        grid, boxes = self.dataset[frame_id]
         class_output, reg_output = self.model(grid[None].to(self.device))
         model_out_shape = list(reg_output.shape)
         class_output_shape = list(class_output.shape)
