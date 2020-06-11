@@ -139,9 +139,9 @@ class McProcessor:
 
         # plot gt bboxes
         ax_gt = draw_bev_with_bboxes(grid, boxes, edgecolor="red", ax=ax_gt)
-        mapped_bb, mapped_bb_3sigma, mapped_bb_n3sigma = self.get_bbox_from_regression(mean_regr,
+        mapped_bb, mapped_bb_3sigma, mapped_bb_n3sigma = self.get_bbox_from_regression(mean_class,
+                                                                                       mean_regr,
                                                                                        sigma_regr,
-                                                                                       mean_class,
                                                                                        gt_former.prior_boxes_params)
         ax_pred = draw_bev_with_bboxes(grid, mapped_bb_3sigma.cpu(), edgecolor="red",
                                        label="model confidence 98%", ax=ax_pred)
