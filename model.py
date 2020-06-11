@@ -4,7 +4,6 @@ from math import sqrt
 from time import time
 from typing import List, Tuple, Optional, Union
 
-import numpy as np
 import torch
 from torch import nn
 

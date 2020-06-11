@@ -41,6 +41,7 @@ class McProcessor:
         self.model = Detector(img_depth=frame_depth)
         self.model.load_state_dict(torch.load(model_path))
         self.model.to(self.device)
+        self.model.train()  # keeps dropouts active
 
         self.threshold = threshold
 
@@ -52,12 +53,11 @@ class McProcessor:
         :param n_samples: number of samples for Monte Carlo approach
         :param batch_size: size of batch
         :param save_imgs: - flag, if true - save figs to folder pics
-        :param saving_folder: - path to the folder, where images will be saved
-                               (if folder doesnt exist, creates new)
-        :return: Tuple[plt.Figure, plt.Axes,, plt.Axes,] -
-                            first - figure object
-                            second - GT plot
-                            third - prediction plot
+        :param saving_folder: - path to the folder, where images will be saved (creates new if there is none)
+        :return: tuple of 3 pyplot objects:
+            1st - figure object
+            2nd - GT plot
+            3rd - prediction plot
         """
 
         mean_class, _, mean_reg, sigma_reg = self.apply_monte_carlo(frame_id, n_samples, batch_size)
@@ -88,58 +88,49 @@ class McProcessor:
     def apply_monte_carlo(self, frame_id: int = 0, n_samples: int = 10, batch_size: int = 4) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Apply Monte Carlo dropout  for representing model uncertainty
-        :param frame_id: id of data(grid) in scene
+        Apply Monte Carlo dropout for representing model uncertainty
+        :param frame_id: id of frame (grid) in the dataset
         :param n_samples: number of samples for Monte Carlo approach
-        :param batch_size: = size of batch
-        :return: Tuple(torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor) -
-                                                1st  - tensor of mean values of class model prediction,
-                                                2nd - tensor of standard deviations of class model prediction
-                                                3rd  - tensor of mean values of regression model prediction,
-                                                4th - tensor of standard deviations of regression model prediction
+        :param batch_size: batch size
+        :return: tuple of four torch.Tensors:
+            1st - mean values of class model prediction
+            2nd - standard deviations of class model prediction
+            3rd - mean values of regression model prediction
+            4th - standard deviations of regression model prediction
         """
-        assert n_samples > 1, "Need minimum 2 samples to calculate variance"
-
-        # set up computing device for pytorch
-        self.model.to(self.device)
-        # keep dropouts active
-        self.model.train()
+        assert n_samples > 1, "Need minimum 2 samples to calculate unbiased variance"
 
         grid, boxes = self.dataset[frame_id]
         class_output, reg_output = self.model(grid[None].to(self.device))
-        model_out_shape = list(reg_output.shape)
-        class_output_shape = list(class_output.shape)
-        
-        samples_reg = reg_output  # .unsqueeze(-1)      #torch.empty(model_out_shape + [0]).to(device)
-        samples_class = class_output  # .unsqueeze(-1)  #torch.empty(class_output_shape + [0]).to(device)
-        
-        # TODO: append to single batch for speeding up
-        for i in range(0, math.ceil((n_samples - 1)/batch_size)):
-            current_batch_size = min((n_samples - 1) - (i * batch_size), batch_size)
-            stacked_grid = torch.stack(current_batch_size * [grid])  # .squeeze()
-            class_output, reg_output = self.model(stacked_grid.to(self.device))
-            samples_reg = torch.cat((reg_output, samples_reg))
-            samples_class = torch.cat((samples_class, class_output))
+        samples_class, samples_reg = class_output, reg_output
 
-        # calculate mean and variance of regression
-        mean_reg = torch.mean(samples_reg, dim=0).detach().unsqueeze(0)
+        # TODO: append to single batch for speeding up
+        for i in range(math.ceil((n_samples - 1) / batch_size)):
+            current_batch_size = min((n_samples - 1) - (i * batch_size), batch_size)
+            stacked_grid = torch.stack(current_batch_size * [grid])
+            class_output, reg_output = self.model(stacked_grid.to(self.device))
+            samples_class = torch.cat((samples_class, class_output))
+            samples_reg = torch.cat((reg_output, samples_reg))
+
+        # calculate stats from samples set
+        samples_class, samples_reg = samples_class.detach(), samples_reg.detach()
+        mean_reg = torch.mean(samples_reg, dim=0).unsqueeze(0)
         variance_reg = torch.var(samples_reg, dim=0)
-        sigma_reg = torch.sqrt(variance_reg).detach().unsqueeze(0)
-        # calculate mean and variance of classification
-        mean_class = torch.mean(samples_class, dim=0).detach().unsqueeze(0)
+        sigma_reg = torch.sqrt(variance_reg).unsqueeze(0)
+        mean_class = torch.mean(samples_class, dim=0).unsqueeze(0)
         variance_class = torch.var(samples_class, dim=0)
-        sigma_class = torch.sqrt(variance_class).detach().unsqueeze(0)
+        sigma_class = torch.sqrt(variance_class).unsqueeze(0)
 
         return mean_class, sigma_class, mean_reg, sigma_reg
 
     def _vis_mc(self, mean_class: torch.Tensor, mean_regr: torch.Tensor,
                 sigma_regr: torch.Tensor, data_number: int = 0):
         """
-        visualization of predictions processed by self.apply_monte_carlo
+        Visualize predictions obtained via Monte Carlo estimations
         :param mean_class: relative path to data folder
         :param mean_regr: number of scenes in dataset
         :param data_number: id of data(grid) in scene
-        :return: Tuple(plt.Axes, plt.Axes) -  gtplots
+        :return: Tuple(plt.Axes, plt.Axes) - gtplots
         """
 
         grid, boxes = self.dataset[data_number]
@@ -175,16 +166,15 @@ class McProcessor:
                                  mean_class: torch.Tensor, prior_boxes: torch.Tensor) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Calculating of bboxes (of mean values, mean+-3sigma)from predictions processed by self.apply_monte_carlo
-
+        Calculate bboxes (of mean values, mean - sigma, mean + 3 sigma) from Monte Carlo estimations
         :param mean_regr: mean values of predicted regressions
         :param sigma_regr: std of predicted regressions
         :param mean_class: mean values of predicted regressions
         :param prior_boxes: prior boxes from GroundTruthFormer
-        :return:  Tuple[torch.Tensor, torch.Tensor, torch.Tensor], where:
-                                                    first - bbox with confidence 50% (from mean)
-                                                    second - bbox with confidence 98% (from mean+3sigma)
-                                                    third - bbox with confidence 33% (from mean-sigma)
+        :return: tuple of three torch.Tensors:
+            1st - bbox with confidence 50% (from mean)
+            2nd - bbox with confidence 98% (from mean + 3 * sigma)
+            3rd - bbox with confidence 33% (from mean - sigma)
         """
 
         prior_boxes = prior_boxes[(torch.sigmoid(mean_class) > self.threshold).squeeze()].cpu()
