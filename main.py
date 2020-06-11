@@ -2,8 +2,6 @@
 import argparse
 import yaml
 
-import matplotlib.pyplot as plt
-
 import mc_dropout
 import train
 
@@ -57,7 +55,5 @@ if __name__ == "__main__":
         print(f'Validation loss: {loss:.4f}\nValidation mAP score: {score:.4f}')
     elif args.command == "mc-dropout":
         mc_processor = mc_dropout.McProcessor(data_path=args.data, model_path=args.model,
-                                              version=params['nuscenes_version'], n_scenes=params['n_scenes'])
-        fig, ax_gt, ax_pred = mc_processor.visualise_montecarlo(batch_size=1, frame_id=21, n_samples=10,
-                                                                save_imgs=False)
-        plt.show()
+                                              nuscenes_version=params['nuscenes_version'], n_scenes=params['n_scenes'])
+        mc_processor.visualise_montecarlo(batch_size=1, frame_id=21, n_samples=10)

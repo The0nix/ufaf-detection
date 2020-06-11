@@ -16,12 +16,12 @@ class McProcessor:
     """
     Forms Monte Carlo based uncertanties and visualizes them
     :param data_path: relative path to data folder
-    :param version: version of the dataset
+    :param nuscenes_version: version of the dataset
     :param n_scenes: number of scenes in dataset
     :param threshold: threshold for choosing is bbox or not
     :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, second - gt_bboxes
     """
-    def __init__(self, data_path: str, n_scenes: int = 10, version: str = 'v1.0-mini',
+    def __init__(self, data_path: str, n_scenes: int = 10, nuscenes_version: str = 'v1.0-mini',
                  threshold: int = 0.5, model_path: str = None) -> None:
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
@@ -31,9 +31,9 @@ class McProcessor:
             print('Using device: CPU\n')
 
         # init dataset
-        self.version = version
+        self.version = nuscenes_version
         self.n_scenes = n_scenes
-        self.nuscenes = create_nuscenes(data_path, version)
+        self.nuscenes = create_nuscenes(data_path, nuscenes_version)
         self.dataset = NuscenesBEVDataset(nuscenes=self.nuscenes, n_scenes=n_scenes)
 
         # init model
@@ -80,6 +80,8 @@ class McProcessor:
                         version=self.version, n_scenes=self.n_scenes, data_number=frame_id)
             extent_ped = ax_pred.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
             fig.savefig(img_path, bbox_inches=extent_ped)
+
+        plt.show()
 
         return fig, ax_gt, ax_pred
 
@@ -141,7 +143,7 @@ class McProcessor:
         """
 
         grid, boxes = self.dataset[data_number]
-        frame_depth, frame_width, frame_length = self.get_grid_size()
+        frame_depth, frame_width, frame_length = self.dataset.grid_size
 
         detector_out_shape = (1, self.model.out_channels, frame_width // (2 ** self.model.n_pools),
                               frame_length // (2 ** self.model.n_pools))
