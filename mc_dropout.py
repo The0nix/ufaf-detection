@@ -150,6 +150,7 @@ class McProcessor:
         ax_pred = draw_bev_with_bboxes(grid, mapped_bb_n3sigma.cpu(), edgecolor="lightcoral", ax=ax_pred,
                                        label="model confidence 2%")
         ax_pred.legend()
+
         return fig, ax_gt, ax_pred
     
     def get_bbox_from_regression(self, mean_class: torch.Tensor, mean_regr: torch.Tensor, sigma_regr: torch.Tensor,
