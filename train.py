@@ -171,8 +171,8 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
     criterion = DetectionLoss()
     optimizer = Adam(model.parameters(), lr=learning_rate)
     scheduler = StepLR(optimizer, gamma=0.5, step_size=50)  # TODO: adjust step_size empirically
-    detector_out_shape = batch_size, model.out_channels, frame_width // (2 ** model.n_pools), \
-        frame_length // (2 ** model.n_pools)
+    detector_out_shape = (batch_size, model.out_channels, frame_width // (2 ** model.n_pools),
+                          frame_length // (2 ** model.n_pools))
     gt_former = GroundTruthFormer((frame_width, frame_length), detector_out_shape, device=device)
 
     if len(device_id) > 1 and max(device_id) < torch.cuda.device_count():
