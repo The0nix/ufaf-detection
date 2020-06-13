@@ -53,4 +53,4 @@ if __name__ == "__main__":
     elif args.command == "mc-dropout":
         mc_processor = mc_dropout.MCProcessor(model=args.model, nuscenes_version=params['nuscenes_version'],
                                               data_path=params["data_path"], n_scenes=params['n_scenes'])
-        mc_processor.visualise_monte_carlo(batch_size=1, frame_id=21, n_samples=10)
+        mc_processor.visualise_monte_carlo(batch_size=1, sample_id=21, n_samples=10)

@@ -46,41 +46,41 @@ class MCProcessor:
 
         self.threshold = threshold
 
-    def visualise_monte_carlo(self, frame_id: int = 0, n_samples: int = 10, batch_size: int = 4,
+    def visualise_monte_carlo(self, sample_id: int = 0, n_samples: int = 10, batch_size: int = 4,
                               save_imgs: bool = False, saving_folder: str = "pics") -> None:
         """
         Visualize predictions obtained via Monte Carlo estimations and save plots if needed
-        :param frame_id: number of frame (grid) in the dataset
+        :param sample_id: number of frame (grid) in the dataset
         :param n_samples: number of samples for Monte Carlo approach
         :param batch_size: size of batch
         :param save_imgs: - flag, if true - save figs to folder pics
         :param saving_folder: - path to the folder, where images will be saved (creates new if there is none)
         """
 
-        mean_class, _, mean_reg, sigma_reg = self.apply_monte_carlo(frame_id, n_samples, batch_size)
-        fig, ax_gt, ax_pred = self._vis_mc(mean_class, mean_reg, sigma_reg, frame_id)
+        mean_class, _, mean_reg, sigma_reg = self.apply_monte_carlo(sample_id, n_samples, batch_size)
+        fig, ax_gt, ax_pred = self._vis_mc(mean_class, mean_reg, sigma_reg, sample_id)
 
         if save_imgs:
             if not os.path.exists(saving_folder):
                 os.makedirs(saving_folder)
-            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{frame_id}_full.png'
+            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{sample_id}_full.png'
             fig.savefig(img_path)
 
-            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{frame_id}_gt.png'
+            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{sample_id}_gt.png'
             extent = ax_gt.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
             fig.savefig(img_path, bbox_inches=extent)
 
-            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{frame_id}_pred.png'
+            img_path = f'{saving_folder}/{self.version}_{self.n_scenes}_{sample_id}_pred.png'
             extent_ped = ax_pred.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
             fig.savefig(img_path, bbox_inches=extent_ped)
 
         plt.show()
 
-    def apply_monte_carlo(self, frame_id: int = 0, n_samples: int = 10, batch_size: int = 4) \
+    def apply_monte_carlo(self, sample_id: int = 0, n_samples: int = 10, batch_size: int = 4) \
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Apply Monte Carlo dropout for representing model uncertainty
-        :param frame_id: id of frame (grid) in the dataset
+        :param sample_id: id of frame (grid) in the dataset
         :param n_samples: number of samples for Monte Carlo approach
         :param batch_size: batch size
         :return: tuple of four torch.Tensors:
@@ -91,7 +91,7 @@ class MCProcessor:
         """
         assert n_samples > 1, "Need minimum 2 samples to calculate unbiased variance"
 
-        grid, boxes = self.dataset[frame_id]
+        grid, boxes = self.dataset[sample_id]
         class_output, reg_output = self.model(grid[None].to(self.device))
         samples_class, samples_reg = class_output, reg_output
 
@@ -115,19 +115,19 @@ class MCProcessor:
         return mean_class, sigma_class, mean_reg, sigma_reg
 
     def _vis_mc(self, mean_class: torch.Tensor, mean_regr: torch.Tensor,
-                sigma_regr: torch.Tensor, frame_id: int = 0) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
+                sigma_regr: torch.Tensor, sample_id: int = 0) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
         """
         Visualize predictions obtained via Monte Carlo estimations
         :param mean_class: mean of classification predictions
         :param mean_regr: mean of regression predictions
         :param sigma_regr: standard deviation of regression predictions
-        :param frame_id: number of frame (grid) in the dataset
+        :param sample_id: number of frame (grid) in the dataset
         :return: tuple of three pyplot objects:
             1st - figure object
             2nd - plot with ground truth bounding boxes
             3rd - plt with predicted bounding boxes
         """
-        grid, boxes = self.dataset[frame_id]
+        grid, boxes = self.dataset[sample_id]
         grid, boxes = grid.cpu().squeeze(), boxes.cpu()
         frame_depth, frame_width, frame_length = self.dataset.grid_size
         detector_out_shape = (1, self.model.out_channels, frame_width // (2 ** self.model.n_pools),
