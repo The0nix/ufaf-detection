@@ -47,7 +47,7 @@ class MCProcessor:
         self.threshold = threshold
 
     def visualise_monte_carlo(self, sample_id: int = 0, n_samples: int = 10, batch_size: int = 4,
-                              save_imgs: bool = False, saving_folder: str = "pics") -> None:
+                              save_imgs: bool = False, saving_folder: str = 'pics') -> None:
         """
         Visualize predictions obtained via Monte Carlo estimations and save plots if needed
         :param sample_id: number of frame (grid) in the dataset

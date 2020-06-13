@@ -28,6 +28,7 @@ parser_mc_dropout = subparsers.add_parser("mc-dropout", description="Plots uncer
                                                                     "predicted bounding boxes")
 parser_mc_dropout.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
 parser_mc_dropout.add_argument("-c", "--config", type=str, required=True, help="config with training parameters")
+parser_mc_dropout.add_argument("-s", "--saving_folder", type=str, default="pics", help="directory to save pictures to")
 
 
 def load_yaml(filepath: str) -> dict:
@@ -53,4 +54,5 @@ if __name__ == "__main__":
     elif args.command == "mc-dropout":
         mc_processor = mc_dropout.MCProcessor(model=args.model, nuscenes_version=params['nuscenes_version'],
                                               data_path=params["data_path"], n_scenes=params['n_scenes'])
-        mc_processor.visualise_monte_carlo(batch_size=1, sample_id=21, n_samples=10)
+        mc_processor.visualise_monte_carlo(batch_size=1, sample_id=21, n_samples=10,
+                                           saving_folder=args.saving_folder)
