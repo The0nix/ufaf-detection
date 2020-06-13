@@ -161,7 +161,7 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                             collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     print('Loaders are ready.\n',
           f'Number of batches in train loader: {len(train_loader)}\n'
-          f'Number of bathces in validation loader: {len(val_loader)}', sep='')
+          f'Number of bathes in validation loader: {len(val_loader)}', sep='')
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth)
