@@ -21,7 +21,7 @@ class McProcessor:
     :param threshold: threshold for choosing is bbox or not
     :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, second - gt_bboxes
     """
-    def __init__(self, nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = 10,
+    def __init__(self, nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = None,
                  threshold: int = 0.5, model_path: str = None) -> None:
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
