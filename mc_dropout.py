@@ -10,7 +10,7 @@ from model import Detector, GroundTruthFormer
 from visualization import draw_bev_with_bboxes
 
 
-class McProcessor:
+class MCProcessor:
     """
     Forms Monte Carlo based uncertanties and visualizes them
     :param nuscenes_version: version of the dataset
