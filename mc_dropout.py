@@ -1,6 +1,6 @@
 import math
 import os
-from typing import Tuple
+from typing import Tuple, Union
 
 import matplotlib.pyplot as plt
 import torch
@@ -20,7 +20,7 @@ class McProcessor:
     :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, second - gt_bboxes
     """
     def __init__(self, nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = None,
-                 threshold: int = 0.5, model_path: str = None) -> None:
+                 threshold: int = 0.5, model: Union[str, torch.nn.Module] = None) -> None:
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
             print('Using device: GPU\n')
@@ -35,9 +35,12 @@ class McProcessor:
         self.dataset = NuscenesBEVDataset(nuscenes=self.nuscenes, n_scenes=n_scenes)
 
         # init model
-        frame_depth, _, _ = self.dataset.grid_size
-        self.model = Detector(img_depth=frame_depth)
-        self.model.load_state_dict(torch.load(model_path))
+        if isinstance(model, str):
+            frame_depth, _, _ = self.dataset.grid_size
+            self.model = Detector(img_depth=frame_depth)
+            self.model.load_state_dict(torch.load(model))
+        elif isinstance(model, torch.nn.Module):
+            self.model = model
         self.model.to(self.device)
         self.model.train()  # keeps dropouts active
 

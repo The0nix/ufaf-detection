@@ -51,6 +51,6 @@ if __name__ == "__main__":
         loss, score = train.eval(model_path=args.model, **params)
         print(f'Validation loss: {loss:.4f}\nValidation mAP score: {score:.4f}')
     elif args.command == "mc-dropout":
-        mc_processor = mc_dropout.McProcessor(model_path=args.model, nuscenes_version=params['nuscenes_version'],
+        mc_processor = mc_dropout.McProcessor(model=args.model, nuscenes_version=params['nuscenes_version'],
                                               data_path=params["data_path"], n_scenes=params['n_scenes'])
         mc_processor.visualise_monte_carlo(batch_size=1, frame_id=21, n_samples=10)
