@@ -15,7 +15,6 @@ parser_train = subparsers.add_parser("train", description="Trains the model with
                                                           "parameters and outputs weights")
 parser_train.add_argument("-o", "--output", type=str, required=True, help="directory to save model to")
 parser_train.add_argument("-c", "--config", type=str, help="config with training parameters")
-parser_train.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 parser_train.add_argument("-g", "--gpu", type=int, nargs='*', help="list of available GPUs")
 parser_train.add_argument("-t", "--tensorboard", type=str, default="./tb", help="directory for tensorboard logs")
 
@@ -23,14 +22,12 @@ parser_train.add_argument("-t", "--tensorboard", type=str, default="./tb", help=
 parser_eval = subparsers.add_parser("eval", description="Evaluates provided model on validation set")
 parser_eval.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
 parser_eval.add_argument("-c", "--config", type=str,  help="config with training parameters")
-parser_eval.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
 # MC dropout parser
 parser_mc_dropout = subparsers.add_parser("mc-dropout", description="Plots uncertainty boundaries for "
                                                                     "predicted bounding boxes")
 parser_mc_dropout.add_argument("-m", "--model", type=str, required=True, help="path to saved model")
 parser_mc_dropout.add_argument("-c", "--config", type=str, required=True, help="config with training parameters")
-parser_mc_dropout.add_argument("-d", "--data", type=str, default="./data", help="directory with nuScenes dataset")
 
 
 def load_yaml(filepath: str) -> dict:
@@ -49,12 +46,11 @@ if __name__ == "__main__":
     params = load_yaml(args.config) if args.config else {}
 
     if args.command == "train":
-        train.train(data_path=args.data, output_model_dir=args.output, tb_path=args.tensorboard,
-                    device_id=args.gpu, **params)
+        train.train(output_model_dir=args.output, tb_path=args.tensorboard, device_id=args.gpu, **params)
     elif args.command == "eval":
-        loss, score = train.eval(data_path=args.data, model_path=args.model, **params)
+        loss, score = train.eval(model_path=args.model, **params)
         print(f'Validation loss: {loss:.4f}\nValidation mAP score: {score:.4f}')
     elif args.command == "mc-dropout":
-        mc_processor = mc_dropout.McProcessor(data_path=args.data, model_path=args.model,
-                                              nuscenes_version=params['nuscenes_version'], n_scenes=params['n_scenes'])
+        mc_processor = mc_dropout.McProcessor(model_path=args.model, nuscenes_version=params['nuscenes_version'],
+                                              data_path=params["data_path"], n_scenes=params['n_scenes'])
         mc_processor.visualise_monte_carlo(batch_size=1, frame_id=21, n_samples=10)

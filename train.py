@@ -101,10 +101,10 @@ def run_epoch(model: torch.nn.Module, loader: DataLoader, criterion: nn.modules.
         return cumulative_loss, cumulative_score
 
 
-def train(data_path: str, output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
-          n_scenes: int = 10, nuscenes_version: str = 'v1.0-mini', learning_rate: int = 1e-4,
-          n_dumps_per_epoch: int = 10, n_loader_workers: int = 4, batch_size: int = 12, n_epochs: int = 50,
-          device_id: List[int] = None) -> None:
+def train(output_model_dir: str, input_model_path: Optional[str] = None, tb_path: str = None,
+          nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = 10,
+          learning_rate: int = 1e-4, n_dumps_per_epoch: int = 10, n_loader_workers: int = 4, batch_size: int = 12,
+          n_epochs: int = 50, device_id: List[int] = None) -> None:
     """
     Train model, log training statistics if tb_path is specified.
     :param data_path: relative path to data folder
@@ -196,7 +196,7 @@ def train(data_path: str, output_model_dir: str, input_model_path: Optional[str]
                   f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
 
 
-def eval(data_path: str, model_path: str, n_scenes: int = 10, nuscenes_version: str = 'v1.0-mini',
+def eval(model_path: str, nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = 10,
          n_loader_workers: int = 4, batch_size: int = 12):
     """
     Evaluate model.
