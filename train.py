@@ -159,9 +159,9 @@ def train(output_model_dir: str, input_model_path: Optional[str] = None, tb_path
                               collate_fn=frames_bboxes_collate_fn, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                             collate_fn=frames_bboxes_collate_fn, pin_memory=True)
-    print('Loaders are ready.\n',
-          f'Number of batches in train loader: {len(train_loader)}\n'
-          f'Number of batches in validation loader: {len(val_loader)}', sep='')
+    print('Loaders are ready.',
+          f'Number of batches in train loader: {len(train_loader)}'
+          f'Number of batches in validation loader: {len(val_loader)}', sep='\n')
 
     frame_depth, frame_width, frame_length = train_dataset.grid_size
     model = Detector(img_depth=frame_depth)
@@ -192,8 +192,7 @@ def train(output_model_dir: str, input_model_path: Optional[str] = None, tb_path
         if val_score > best_val_score:
             best_val_score = val_score
             torch.save(model.state_dict(), f'{output_model_dir}/{date}.pth')
-            print('\nModel checkpoint is saved.\n',
-                  f'loss: {val_loss:.3f}, score: {val_score:.3f}\n')
+            print('\nModel checkpoint is saved.', f'loss: {val_loss:.3f}, score: {val_score:.3f}', sep='\n')
 
 
 def eval(model_path: str, nuscenes_version: str = 'v1.0-mini', data_path: str = "data/v1.0-mini", n_scenes: int = None,
@@ -221,8 +220,8 @@ def eval(model_path: str, nuscenes_version: str = 'v1.0-mini', data_path: str = 
     eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=True, num_workers=n_loader_workers,
                              collate_fn=frames_bboxes_collate_fn, pin_memory=True)
 
-    print('Validation loader is ready.\n',
-          f'Number of batches in eval loader: {len(eval_loader)}\n', sep='')
+    print('Validation loader is ready.',
+          f'Number of batches in eval loader: {len(eval_loader)}\n', sep='\n')
 
     frame_depth, frame_width, frame_length = eval_dataset.grid_size
     model = Detector(img_depth=frame_depth).to(device)
