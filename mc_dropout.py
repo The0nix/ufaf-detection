@@ -9,14 +9,12 @@ from dataset import create_nuscenes, NuscenesBEVDataset
 from model import Detector, GroundTruthFormer
 from visualization import draw_bev_with_bboxes
 
-torch.random.manual_seed(2)
-
 
 class McProcessor:
     """
     Forms Monte Carlo based uncertanties and visualizes them
-    :param data_path: relative path to data folder
     :param nuscenes_version: version of the dataset
+    :param data_path: relative path to data folder
     :param n_scenes: number of scenes in dataset
     :param threshold: threshold for choosing is bbox or not
     :return: Tuple[torch.tensor, np.ndarray] - first  - grid tensor, second - gt_bboxes

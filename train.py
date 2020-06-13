@@ -107,12 +107,12 @@ def train(output_model_dir: str, input_model_path: Optional[str] = None, tb_path
           n_epochs: int = 50, device_id: List[int] = None) -> None:
     """
     Train model, log training statistics if tb_path is specified.
-    :param data_path: relative path to data folder
     :param output_model_dir: path to directory to save model weights to
     :param input_model_path: path to model weights. If None, create new model
     :param tb_path: name of the folder for tensorboard data to be store in
-    :param n_scenes: number of scenes in dataset
     :param nuscenes_version: version of the dataset
+    :param data_path: relative path to data folder
+    :param n_scenes: number of scenes in dataset
     :param learning_rate: learning rate for Adam
     :param n_dumps_per_epoch: how many times per epoch to dump images to tensorboard (not implemented yet)
     :param n_loader_workers: number of CPU workers for data loader processing
@@ -199,10 +199,10 @@ def eval(model_path: str, nuscenes_version: str = 'v1.0-mini', data_path: str = 
          n_loader_workers: int = 4, batch_size: int = 12):
     """
     Evaluate model.
-    :param data_path: relative path to data folder
     :param model_path: relative path to save model weights
-    :param n_scenes: number of scenes in dataset
     :param nuscenes_version: version of the dataset
+    :param data_path: relative path to data folder
+    :param n_scenes: number of scenes in dataset
     :param n_loader_workers: number of CPU workers for data loader processing
     :param batch_size: batch size
     """
