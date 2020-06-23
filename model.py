@@ -2,9 +2,8 @@ import cProfile
 from collections import defaultdict
 from math import sqrt
 from time import time
-from typing import List, Tuple, Union
+from typing import List, Tuple, Optional, Union
 
-import numpy as np
 import torch
 from torch import nn
 
@@ -117,6 +116,65 @@ class Detector(nn.Module):
         )
 
         return classification_output, regression_output
+
+
+class DetectionLoss(nn.modules.loss._Loss):
+    """
+    Combination of losses for both regression and classification targets
+    :param prediction_units_per_cell: number of predefined bounding boxes per feature map cell
+    :param regression_values_per_unit: number of regression values per bounding box
+    :param classification_values_per_unit: number of classes for classification problem
+    :param regression_base_loss: loss function to be used for regression targets
+    :param classification_base_loss: loss function to be used for classification targets
+    :param negative_positive_ratio: ratio of negative samples to positive samples for hard negative mining
+    """
+    def __init__(self, prediction_units_per_cell: int = 6, regression_values_per_unit: int = 6,
+                 classification_values_per_unit: int = 1, negative_positive_ratio: int = 3,
+                 regression_base_loss: Optional[nn.modules.loss._Loss] = None,
+                 classification_base_loss: Optional[nn.modules.loss._Loss] = None) -> None:
+        super().__init__()
+        self.prediction_units_per_cell = prediction_units_per_cell
+        self.regression_values_per_unit = regression_values_per_unit
+        self.classification_values_per_unit = classification_values_per_unit
+        self.negative_positive_ratio = negative_positive_ratio
+        self.regression_base_loss = regression_base_loss or nn.SmoothL1Loss()
+        self.classification_base_loss = classification_base_loss or nn.BCEWithLogitsLoss()
+
+    # noinspection PyUnresolvedReferences
+    def __call__(self, predictions: Tuple[torch.Tensor, torch.Tensor],
+                 ground_truth: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
+        """
+        Compute loss
+        :param predictions: model output
+        :param ground_truth: ground truth data
+        Both are tuples of two 4D torch.Tensor of data:
+        First tensor is of shape [batch_size, detector_out_width, detector_out_length, n_predefined_boxes]
+        and represents classification target with ones for boxes with associated GT boxes
+        Second tensor is of shape
+        [batch_size, detector_out_width, detector_out_length, n_predefined_boxes, n_bbox_params]
+        and represents regression target
+        :return: one element torch.Tensor loss
+        """
+        pred_classification, pred_regression = predictions
+        gt_classification, gt_regression = ground_truth
+        pred_regression *= gt_classification.unsqueeze(-1)
+        gt_regression *= gt_classification.unsqueeze(-1)  # may be redundant
+
+        # perform hard negative mining
+        n_positive = gt_classification.sum()
+        n_values_to_eliminate = int((torch.numel(gt_classification) - (self.negative_positive_ratio + 1) * n_positive))
+
+        # n_values_to_eliminate can be less than zero when classes on the provided frames are already well balanced:
+        if n_values_to_eliminate > 0:
+            negative_probs = pred_classification * (1 - gt_classification)
+            negative_probs = negative_probs.flatten()
+            negative_probs[torch.topk(negative_probs, k=n_values_to_eliminate,
+                                      largest=False).indices] = -1e9  # filter low negative probabilities
+            negative_probs = negative_probs.view_as(pred_classification)
+            pred_classification *= gt_classification  # leave only positive predictions
+            pred_classification += negative_probs     # add mined negative predictions
+        return self.regression_base_loss(pred_regression, gt_regression) + \
+            self.classification_base_loss(pred_classification, gt_classification)
 
 
 class GroundTruthFormer:
