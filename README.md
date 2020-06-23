@@ -4,7 +4,7 @@
 This is the repository for Deep Learning course final project made by Tamerlan Tabolov, Anton Semenkin, Natalia Soboleva and Aleksey Postnikov.
 
 Detection is made in the Single Shot Detector fashion, implementing early fusion model from [Fast & Furious paper](http://openaccess.thecvf.com/content_cvpr_2018/papers/Luo_Fast_and_Furious_CVPR_2018_paper.pdf).
-Uncertanty estimation is made via [Markov Chain Dropout](https://arxiv.org/abs/1506.02142) technique.
+Uncertainty estimation is made via [Markov Chain Dropout](https://arxiv.org/abs/1506.02142) technique.
 
 ![results](https://i.ibb.co/SQktmFq/with-gt.png)
 
@@ -38,4 +38,3 @@ python ./main.py eval -c path/to/config.yaml -m path/to/model/checkpoint.pth
 ```
 python ./main.py mc-dropout -c path/to/config.yaml -m path/to/model/checkpoint.pth [-s path/to/plots/saves/dir/]
 ```
-
