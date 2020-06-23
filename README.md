@@ -6,7 +6,7 @@ This is the repository for Deep Learning course final project made by Tamerlan T
 Detection is made in the Single Shot Detector fashion, implementing early fusion model from [Fast & Furious paper](http://openaccess.thecvf.com/content_cvpr_2018/papers/Luo_Fast_and_Furious_CVPR_2018_paper.pdf).
 Uncertanty estimation is made via [Markov Chain Dropout](https://arxiv.org/abs/1506.02142) technique.
 
-![results](https://ibb.co/k3L4DNY)
+![results](https://i.ibb.co/SQktmFq/with-gt.png)
 
 ## Installation
 Create your virtual environment with Python 3.8+ and install dependencies using
