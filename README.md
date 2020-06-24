@@ -1,5 +1,6 @@
 # Uncertainty Estimation in LiDAR detection
 ![python3.8](https://img.shields.io/badge/python-v3.8-blue)
+![pytorch1.5.0](https://img.shields.io/badge/pytorch-v1.5.0-brightgreen)
 
 This is the repository for Deep Learning course final project made by Tamerlan Tabolov, Anton Semenkin, Natalia Soboleva and Aleksey Postnikov.
 
